@@ -1,0 +1,71 @@
+import os
+import json
+import time
+from bs4 import BeautifulSoup
+import nltk.tokenize
+import re
+nltk.download('punkt_tab')
+
+def json_files(path):
+    files = []
+    for folder in os.listdir(path):
+        folder_path = os.path.join(path, folder)
+        if os.path.isdir(folder_path):
+            for file in os.listdir(folder_path):
+                if file.endswith(".json"):
+                    file_path = os.path.join(folder_path, file)
+                    with open(file_path, "r") as f:
+                        files.append(json.load(f))
+                        # print(files)
+                        # time.sleep(5)
+
+    return files
+
+def tokenize(text):
+    word_dict = {}
+    doc_words = BeautifulSoup(text, 'html.parser').get_text()
+    # tokens = doc_words.split()
+    # print(doc_words)
+    tokens = nltk.word_tokenize(doc_words)
+    # tokens = re.sub(r"[^\w\s]", "", token)
+    for token in tokens:
+        token = re.sub(r"[^\w\s]", "", token)
+        token = token.lower()
+        if token != '':
+            if token not in word_dict:
+                word_dict[token] = 1
+            else:
+                word_dict[token] += 1
+
+    # print(word_dict)
+    return word_dict
+
+def index(files):
+    index = {}
+
+    counter = 0
+    for doc in files:
+        content = doc['content']
+        tokens = tokenize(content)
+        # print(tokens)
+        print()
+        for word in tokens:
+            index_list = [counter, doc['url'], tokens[word]]
+            if word not in index:
+                index[word] = [index_list]
+            else:
+                index[word] += [index_list]
+
+        print(index)
+        time.sleep(5)
+        counter += 1
+
+        
+
+def main(path):
+    files = json_files(path)
+    index(files)
+
+if __name__ == "__main__":
+    # path = "c:/users/16264/desktop/developer/ANALYST"
+    main(path)
