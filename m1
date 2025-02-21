@@ -7,7 +7,7 @@ import re
 nltk.download('punkt_tab')
 ## TODO: should porterstem words
 
-ind_size = 1000
+ind_size = 500
 partial_index_directory = os.path.join(os.getcwd(), "partial_index")
 complete_index_file = "complete_index.json"
 
@@ -27,27 +27,30 @@ def json_files(path):
 
 def tokenize(text):
     word_dict = {}
-    doc_words = BeautifulSoup(text, 'html.parser').get_text()
-    # tokens = doc_words.split()
-    # print(doc_words)
-    tokens = nltk.word_tokenize(doc_words)
-    # tokens = re.sub(r"[^\w\s]", "", token)
-    for token in tokens:
-        token = re.sub(r"[^\w\s]", "", token)
-        token = token.lower()
-        if token != '':
-            if token not in word_dict:
-                word_dict[token] = 1
-            else:
-                word_dict[token] += 1
+    text = text.split("\n")
+    for te in text:
+        doc_words = BeautifulSoup(te, 'html.parser').get_text()
+        # tokens = doc_words.split()
+        # print(doc_words)
+        tokens = nltk.word_tokenize(doc_words)
+        # tokens = re.sub(r"[^\w\s]", "", token)
+        for token in tokens:
+            token = re.sub(r"[^\w\s]", "", token)
+            token = token.lower()
+            if token != '':
+                if token not in word_dict:
+                    word_dict[token] = 1
+                else:
+                    word_dict[token] += 1
 
-    # print(word_dict)
+        # print(word_dict)
     return word_dict
 
 def index(files):
     index = {}
 
     counter = 0
+    running_count = 0
     part = 1
     for doc in files:
         print(doc['url'])
@@ -56,20 +59,25 @@ def index(files):
         # print(tokens)
         print()
         for word in tokens:
-            index_list = [counter, doc['url'], tokens[word]]
+            index_list = [running_count, doc['url'], tokens[word]] ## document ID, document URL, frequency of token
             if word not in index:
                 index[word] = [index_list]
             else:
                 index[word] += [index_list]
 
-        print(index)
+        # print(index)
         # time.sleep(5)
         counter += 1
+        running_count += 1
+        print(counter)
         if counter > ind_size: ## gets called every 10k pages, could lower i think theres like
             index_partial(index, part) ## 50k total ?
             index.clear()
             part += 1
             counter = 0
+    if len(index.keys()) != 0:
+        # part += 1
+        index_partial(index, part) ## catches the final indexes
 
 def index_partial(index, part):
     if not os.path.exists(partial_index_directory): ## wait is this supposed to be ran on lab or local? does os.path work for lab
@@ -89,8 +97,11 @@ def index_complete():
     for f in partial_files:
         with open(os.path.join(partial_index_directory, f), 'r') as f:
             partial_index = json.load(f)
+            for word, info in partial_index.items():
+                if word not in complete_index:
+                    complete_index[word] = []
+                complete_index[word] += [info]
             ### continue continue continue
-            break
     
     return complete_index
 def write_complete_index(complete_index): 
@@ -105,5 +116,5 @@ def main(path):
     write_complete_index(complete_index)
 
 if __name__ == "__main__":
-    path = "c:/users/16264/desktop/developer/ANALYST" ## change to whereever the file is on computer
-    main(path) ## need to use /DEV in the final vers
+    path = "c:/users/16264/desktop/developer/ANALYST"
+    main(path)
