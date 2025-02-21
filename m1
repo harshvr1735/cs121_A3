@@ -104,10 +104,77 @@ def index_complete():
             ### continue continue continue
     
     return complete_index
-def write_complete_index(complete_index): 
-    file = os.path.join(os.getcwd(), "complete_index.json")
+def write_complete_index(complete_index):
+    af_words = 'abcdef' ## omg this looks really clunky
+    gk_words = 'ghijk'
+    lp_words = 'lmnop'
+    qu_words = 'qrstu'
+    vz_words = 'vwxyz'
+    ## actually can you nametuple this ? 
+    af_dict = {}
+    gk_dict = {}
+    lp_dict = {}
+    qu_dict = {}
+    vz_dict = {}
+    nonalpha_dict = {}
+
+
+    comp_index_sorted = dict(sorted(complete_index.items()))
+    for word, info in comp_index_sorted.items():
+        if any (word.startswith(letter) for letter in af_words):
+            # file = os.path.join(os.getcwd(), "complete_index_af.json")
+            if word not in af_dict:
+                af_dict[word] = []
+            af_dict[word] += info
+
+        elif any (word.startswith(letter) for letter in gk_words):
+            if word not in gk_dict:
+                gk_dict[word] = []
+            gk_dict[word] += info
+
+        elif any (word.startswith(letter) for letter in lp_words):
+            if word not in lp_dict:
+                lp_dict[word] = []
+            lp_dict[word] += info
+
+        elif any (word.startswith(letter) for letter in qu_words):
+            if word not in qu_dict:
+                qu_dict[word] = []
+            qu_dict[word] += info
+
+        elif any (word.startswith(letter) for letter in vz_words):
+            if word not in vz_dict:
+                vz_dict[word] = []
+            vz_dict[word] += info
+            
+        else:
+            if word not in nonalpha_dict:
+                nonalpha_dict[word] = []
+            nonalpha_dict[word] += info
+
+
+    af_file = os.path.join(os.getcwd(), "complete_index_af.json")
+    write_files(af_file, af_dict)
+## there has to be a better way skull TODO: THINK OF A BETTER WAY
+    gk_file = os.path.join(os.getcwd(), "complete_index_gk.json")
+    write_files(gk_file, gk_dict)
+
+    lp_file = os.path.join(os.getcwd(), "complete_index_lp.json")
+    write_files(lp_file, lp_dict)
+
+    qu_file = os.path.join(os.getcwd(), "complete_index_qu.json")
+    write_files(qu_file, qu_dict)
+
+    vz_file = os.path.join(os.getcwd(), "complete_index_vz.json")
+    write_files(vz_file, vz_dict)
+
+    ## nonalpha is messed up because it sees a bunch of numbers like an isbn and then strips the hyphens is that supposed to happen ?
+    nonalpha_file = os.path.join(os.getcwd(), "complete_index_nonalpha.json")
+    write_files(nonalpha_file, nonalpha_dict)
+
+def write_files(file, part_complete_index):
     with open(file, "w") as f:
-        json.dump(complete_index, f)
+        json.dump(part_complete_index, f)
 
 def main(path):
     files = json_files(path)
