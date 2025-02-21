@@ -5,6 +5,11 @@ from bs4 import BeautifulSoup
 import nltk.tokenize
 import re
 nltk.download('punkt_tab')
+## TODO: should porterstem words
+
+ind_size = 1000
+partial_index_directory = os.path.join(os.getcwd(), "partial_index")
+complete_index_file = "complete_index.json"
 
 def json_files(path):
     files = []
@@ -14,10 +19,9 @@ def json_files(path):
             for file in os.listdir(folder_path):
                 if file.endswith(".json"):
                     file_path = os.path.join(folder_path, file)
+                    print(file_path)
                     with open(file_path, "r") as f:
                         files.append(json.load(f))
-                        # print(files)
-                        # time.sleep(5)
 
     return files
 
@@ -44,7 +48,9 @@ def index(files):
     index = {}
 
     counter = 0
+    part = 1
     for doc in files:
+        print(doc['url'])
         content = doc['content']
         tokens = tokenize(content)
         # print(tokens)
@@ -57,15 +63,47 @@ def index(files):
                 index[word] += [index_list]
 
         print(index)
-        time.sleep(5)
+        # time.sleep(5)
         counter += 1
+        if counter > ind_size: ## gets called every 10k pages, could lower i think theres like
+            index_partial(index, part) ## 50k total ?
+            index.clear()
+            part += 1
+            counter = 0
 
-        
+def index_partial(index, part):
+    if not os.path.exists(partial_index_directory): ## wait is this supposed to be ran on lab or local? does os.path work for lab
+        os.makedirs(partial_index_directory) ## even so need to upload all the files to the repo which is hmmmm
+    filename = f"partial_index_part{part}.json"
+    file = os.path.join(partial_index_directory, filename)
+    with open(file, "w") as f:
+        json.dump(index, f)
+
+def index_complete():
+    complete_index = {}
+    partial_files = []
+    for f in os.listdir(partial_index_directory):
+        if f.endswith(".json"):
+            partial_files.append(f) ## adding all files to a list
+    
+    for f in partial_files:
+        with open(os.path.join(partial_index_directory, f), 'r') as f:
+            partial_index = json.load(f)
+            ### continue continue continue
+            break
+    
+    return complete_index
+def write_complete_index(complete_index): 
+    file = os.path.join(os.getcwd(), "complete_index.json")
+    with open(file, "w") as f:
+        json.dump(complete_index, f)
 
 def main(path):
     files = json_files(path)
     index(files)
+    complete_index = index_complete()
+    write_complete_index(complete_index)
 
 if __name__ == "__main__":
-    # path = "c:/users/16264/desktop/developer/ANALYST"
-    main(path)
+    path = "c:/users/16264/desktop/developer/ANALYST" ## change to whereever the file is on computer
+    main(path) ## need to use /DEV in the final vers
