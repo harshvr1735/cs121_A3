@@ -5,14 +5,14 @@ from bs4 import BeautifulSoup
 import nltk.tokenize
 from nltk.stem import PorterStemmer
 import re
+from collections import defaultdict
 nltk.download('punkt_tab')
-## TODO: should porterstem words
 
-ind_size = 10000
+ind_size = 5000
 partial_index_directory = os.path.join(os.getcwd(), "partial_index")
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
 stemmer = PorterStemmer()
-complete_index_file = "complete_index.json"
+# complete_index_file = "acomplete_index.json"
 
 def json_files(path):
     files = []
@@ -22,20 +22,10 @@ def json_files(path):
         with json_file.open("r") as f:
             files.append(json.load(f))
 
-    # for folder in os.listdir(path):
-    #     folder_path = os.path.join(path, folder)
-    #     if os.path.isdir(folder_path):
-    #         for file in os.listdir(folder_path):
-    #             if file.endswith(".json"):
-    #                 file_path = os.path.join(folder_path, file)
-    #                 print(file_path)
-    #                 with open(file_path, "r") as f:
-    #                     files.append(json.load(f))
-
     return files
 
 def tokenize(text):
-    word_dict = {}
+    word_dict = defaultdict(int)
     text = text.split("\n")
     for te in text:
         doc_words = BeautifulSoup(te, 'html.parser').get_text()
@@ -47,16 +37,13 @@ def tokenize(text):
             token = re.sub(r"[^\w\s]", "", token).lower()
             if token != '':
                 token = stemmer.stem(token)
-                if token not in word_dict:
-                    word_dict[token] = 1
-                else:
-                    word_dict[token] += 1
+                word_dict[token] += 1
 
         # print(word_dict)
     return word_dict
 
 def index(files):
-    index = {}
+    index = defaultdict(list)
 
     counter = 0
     running_count = 0
@@ -67,12 +54,10 @@ def index(files):
         tokens = tokenize(content)
         # print(tokens)
         print()
-        for word in tokens:
-            index_list = [running_count, doc['url'], tokens[word]] ## document ID, document URL, frequency of token
-            if word not in index:
-                index[word] = [index_list]
-            else:
-                index[word] += [index_list]
+        for word, freq in tokens.items():
+            # index_list = [running_count, doc['url'], freq] ## document ID, document URL, frequency of token
+            index_list = [running_count, freq] ## document ID, frequency of token , need to accomadcate by adding a map func for docs to IDs
+            index[word] += [index_list]
 
         # print(index)
         # time.sleep(5)
@@ -85,7 +70,6 @@ def index(files):
             part += 1
             counter = 0
     if len(index.keys()) != 0:
-        # part += 1
         index_partial(index, part) ## catches the final indexes
 
 def index_partial(index, part):
@@ -97,19 +81,17 @@ def index_partial(index, part):
         json.dump(index, f)
 
 def index_complete():
-    complete_index = {}
-    partial_files = []
+    complete_index = defaultdict(list)
+    # partial_files = []
     for f in os.listdir(partial_index_directory):
         if f.endswith(".json"):
-            partial_files.append(f) ## adding all files to a list
+    #         partial_files.append(f) ## adding all files to a list
     
-    for f in partial_files:
-        with open(os.path.join(partial_index_directory, f), 'r') as f:
-            partial_index = json.load(f)
-            for word, info in partial_index.items():
-                if word not in complete_index:
-                    complete_index[word] = []
-                complete_index[word] += [info]
+    # for f in partial_files:
+            with open(os.path.join(partial_index_directory, f), 'r') as f:
+                partial_index = json.load(f)
+                for word, info in partial_index.items():
+                    complete_index[word] += [info]
             ### continue continue continue
     
     return complete_index
@@ -127,11 +109,9 @@ def write_complete_index(complete_index):
     vz_dict = {}
     nonalpha_dict = {}
 
-
     comp_index_sorted = dict(sorted(complete_index.items()))
     for word, info in comp_index_sorted.items():
         if any (word.startswith(letter) for letter in af_words):
-            # file = os.path.join(os.getcwd(), "complete_index_af.json")
             if word not in af_dict:
                 af_dict[word] = []
             af_dict[word] += info
@@ -182,6 +162,7 @@ def write_complete_index(complete_index):
     nonalpha_file = os.path.join(complete_index_directory, "complete_index_nonalpha.json")
     write_files(nonalpha_file, nonalpha_dict)
 
+    print(f"{len(af_dict)} {len(gk_dict)} {len(lp_dict)} {len(qu_dict)} {len(vz_dict)} {len(nonalpha_dict)}")
     total_tokens = len(af_dict) + len(gk_dict) + len(lp_dict) + len(qu_dict) + len(vz_dict) + len(nonalpha_dict)
     return total_tokens
 
@@ -196,15 +177,21 @@ def write_report(total_tokens, total_files):
     with open(report_path, "w") as f:
         msg = f"Total Number of Tokens: {total_tokens}\nTotal Number of Files: {total_files}"
         f.write(msg)
+def write_single_index(complete_index):
+    file = os.path.join(complete_index_directory, "complete_index_SINGLE.json")
+    write_files(file, complete_index)
 
 
 def main(path):
     files = json_files(path)
     index(files)
     complete_index = index_complete()
+    # total_tokens = write_single_index(complete_index)
+
     total_tokens = write_complete_index(complete_index)
     write_report(total_tokens, len(files))
 
 if __name__ == "__main__":
     path = "c:/users/16264/desktop/developer/DEV"
+    # path = "c:/users/16264/desktop/developer/ANALYST"
     main(path)
