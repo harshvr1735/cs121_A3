@@ -62,7 +62,7 @@ def index(files):
         running_count += 1
         print(counter)
 
-        if counter > ind_size: ## gets called every 10k pages, could lower i think theres like
+        if counter >= ind_size: ## gets called every 10k pages, could lower i think theres like
             index_partial(index, part) ## 50k total ?
             index.clear()
             part += 1
