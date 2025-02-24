@@ -8,6 +8,8 @@ import re
 from collections import defaultdict
 nltk.download('punkt_tab')
 ## NOTE: NEED TO PIP INSALL LXML
+
+
 ind_size = 5000
 partial_index_directory = os.path.join(os.getcwd(), "partial_index")
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
@@ -35,16 +37,16 @@ def tokenize(text):
         if token:
             token = stemmer.stem(token)
             word_dict[token] += 1
-
         # print(word_dict)
     return word_dict
 
 def index(files):
     index = defaultdict(list)
-
     counter = 0
     running_count = 0
     part = 1
+    offload_count = 0
+    # Prompt specifies: The indexer must off load the inverted index hash map from main memory to a partial index on disk at least 3 times during index construction
 
     for doc in files:
         print(doc['url'])
@@ -65,6 +67,7 @@ def index(files):
             index.clear()
             part += 1
             counter = 0
+            offload_count += 1
 
     if len(index.keys()) != 0:
         index_partial(index, part) ## catches the final indexes
@@ -79,7 +82,6 @@ def index_partial(index, part):
 
 def index_complete():
     complete_index = defaultdict(list)
-
     for f in os.listdir(partial_index_directory):
         if f.endswith(".json"):
             with open(os.path.join(partial_index_directory, f), 'r') as f:
