@@ -125,10 +125,19 @@ def write_files(file, part_complete_index):
     with open(file, "w") as f:
         json.dump(part_complete_index, f)
 
+def calculate_index_size(directory):
+    total_size = 0
+    for filename in os.listdir(directory):
+        filepath = os.path.join(directory, filename)
+        if os.path.isfile(filepath):
+            total_size += os.path.getsize(filepath)
+    return total_size / 1024
+
+
 def write_report(total_tokens, total_files):
     report_path = os.path.join(os.getcwd(), "report.txt")
     with open(report_path, "w") as f:
-        msg = f"Total Number of Tokens: {total_tokens}\nTotal Number of Files: {total_files}"
+        msg = f"Total Number of Tokens: {total_tokens}\nTotal Number of Files: {total_files}\nTotal Size of Index (KB): {index_size_kb}"
         f.write(msg)
 
 
@@ -145,10 +154,6 @@ def main(path):
 
     # total_tokens = write_complete_index(complete_index)
     write_report(total_tokens, len(files))
-
-
-
-
 
 
 if __name__ == "__main__":
