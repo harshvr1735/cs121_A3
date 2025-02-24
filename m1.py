@@ -136,7 +136,7 @@ def calculate_index_size(directory):
     return total_size / 1024
 
 
-def write_report(total_tokens, total_files):
+def write_report(total_tokens, total_files, index_size_kb):
     report_path = os.path.join(os.getcwd(), "report.txt")
     with open(report_path, "w") as f:
         msg = f"Total Number of Tokens: {total_tokens}\nTotal Number of Files: {total_files}\nTotal Size of Index (KB): {index_size_kb}"
@@ -153,9 +153,9 @@ def main(path):
     index(files)
     total_tokens = index_complete()
     # total_tokens = write_single_index(complete_index)
-
     # total_tokens = write_complete_index(complete_index)
-    write_report(total_tokens, len(files))
+    index_size_kb = calculate_index_size(complete_index_directory)
+    write_report(total_tokens, len(files), index_size_kb)
 
 
 if __name__ == "__main__":
