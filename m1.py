@@ -59,15 +59,18 @@ def index(files):
         print(doc['url'])
         content = doc['content']
         tokens = tokenize(content)
-        print()
-        for word, freq in tokens.items():
+        #print()
+
+        for word, freq_by_importance in tokens.items():
+            for importance_level, frequency in freq_by_importance.items():
             # index_list = [running_count, doc['url'], freq] ## document ID, document URL, frequency of token
             # index_list = [running_count, freq] ## document ID, frequency of token , need to accomadcate by adding a map func for docs to IDs
-            index[word].append([running_count, freq])
+                posting = [running_count, freq, level]
+                index[word].append(posting)
 
         counter += 1
         running_count += 1
-        print(counter)
+        #print(counter)
 
         if counter >= ind_size: ## gets called every 10k pages, could lower i think theres like
             index_partial(index, part) ## 50k total ?
