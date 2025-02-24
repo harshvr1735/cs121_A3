@@ -9,7 +9,7 @@ import heapq
 nltk.download('punkt_tab')
 ## NOTE: NEED TO PIP INSALL LXML
 
-ind_size = 500
+ind_size = 5000
 partial_index_directory = os.path.join(os.getcwd(), "partial_index")
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
 stemmer = PorterStemmer()
