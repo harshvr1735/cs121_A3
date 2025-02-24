@@ -81,6 +81,7 @@ def index_partial(index, part):
     if not os.path.exists(partial_index_directory): ## wait is this supposed to be ran on lab or local? does os.path work for lab
         os.makedirs(partial_index_directory) ## even so need to upload all the files to the repo which is hmmmm
     filename = f"partial_index_part{part}.json"
+    index = dict(sorted(index.items()))
     file = os.path.join(partial_index_directory, filename)
     with open(file, "w") as f:
         json.dump(index, f)
