@@ -27,17 +27,24 @@ def json_files(path):
     return files
 
 def tokenize(text):
-    word_dict = defaultdict(int)
-    # text = text.split("\n")
-    doc_words = BeautifulSoup(text, 'lxml').get_text()
-    tokens = tokenizer.tokenize(doc_words)
+    soup = BeautifulSoup(text, 'lxlm')
+    word_dict = defaultdict(lambda : defaultdict(int))
+    
+    # Categorizing text based on their importance level
+    important_text = {
+        'title' : soup.title.string if soup.title else '',
+        'h1' : ' '.join([h.get_text() for h in soup.find_all('h1')]),
+        'h2' : ' '.join([h.get_text() for h in soup.find_all('h1')]),
+        'h3' : ' '.join([h.get_text() for h in soup.find_all('h1')]),
+        'bold' : ' '.join([b.get_text() for b in soup.find_all(['b', 'string'])]),
+        'normal' : soup.get_text()
+    }
 
-    for token in tokens:
-        # token = re.sub(r"[^\w\s]", "", token).lower()
-        if token:
-            token = stemmer.stem(token)
-            word_dict[token] += 1
-        # print(word_dict)
+    for level, content in important_text.items():
+        tokens = tokenizer.tokenize(content)
+        for token in tokens:
+            token = stemmer.stem(token) # Porter Stemming
+            word_dict[token][level] += 1
     return word_dict
 
 def index(files):
