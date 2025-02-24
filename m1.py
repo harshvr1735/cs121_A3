@@ -31,12 +31,12 @@ def tokenize(text):
     
     # Categorizing text based on their importance level
     important_text = {
-        'title' : soup.title.string if soup.title else '',
+        'title' : soup.title.string if soup.title and soup.title.string else '',
         'h1' : ' '.join([h.get_text() for h in soup.find_all('h1')]),
-        'h2' : ' '.join([h.get_text() for h in soup.find_all('h1')]),
-        'h3' : ' '.join([h.get_text() for h in soup.find_all('h1')]),
-        'bold' : ' '.join([b.get_text() for b in soup.find_all(['b', 'string'])]),
-        'normal' : soup.get_text()
+        'h2' : ' '.join([h.get_text() for h in soup.find_all('h2')]),
+        'h3' : ' '.join([h.get_text() for h in soup.find_all('h3')]),
+        'bold' : ' '.join([b.get_text() for b in soup.find_all(['b', 'strong'])]),
+        'normal' : soup.get_text() if soup.get_text() else ''
     }
 
     for level, content in important_text.items():
