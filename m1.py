@@ -6,6 +6,7 @@ import nltk.tokenize
 from nltk.stem import PorterStemmer
 from collections import defaultdict
 import heapq
+import re
 
 nltk.download('punkt_tab')
 # NOTE: NEED TO PIP INSTALL LXML
@@ -14,7 +15,7 @@ ind_size = 5000
 partial_index_directory = os.path.join(os.getcwd(), "partial_index")
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
 stemmer = PorterStemmer()
-tokenizer = nltk.tokenize.RegexpTokenizer(r'\w+')
+tokenizer = nltk.tokenize.RegexpTokenizer(r'[a-zA-Z0-9]+')
 
 
 def json_files(path):
@@ -34,12 +35,12 @@ def tokenize(text):
 
     # Categorizing text based on their importance level
     important_text = {
-        'title': soup.title.string if soup.title and soup.title.string else '',
+        't': soup.title.string if soup.title and soup.title.string else '',
         'h1': ' '.join([h.get_text() for h in soup.find_all('h1')]),
         'h2': ' '.join([h.get_text() for h in soup.find_all('h2')]),
         'h3': ' '.join([h.get_text() for h in soup.find_all('h3')]),
-        'bold': ' '.join([b.get_text() for b in soup.find_all(['b', 'strong'])]),
-        'normal': soup.get_text() if soup.get_text() else ''
+        'b': ' '.join([b.get_text() for b in soup.find_all(['b', 'strong'])]),
+        'n': soup.get_text() if soup.get_text() else ''
     }
 
     for level, content in important_text.items():
@@ -52,7 +53,6 @@ def tokenize(text):
 
 def index(files):
     index = defaultdict(list)
-    unitokens = set()
     counter = 0
     running_count = 0
     part = 1
@@ -79,7 +79,6 @@ def index(files):
 
     if len(index.keys()) != 0:
         index_partial(index, part)  # catches the final indexes
-    return len(unitokens)
 
 
 def index_partial(index, part):
@@ -133,7 +132,7 @@ def index_complete():
 
 
 def get_prefix(word):  # names the files and checks prefixes
-    if word[0].isdigit():
+    if re.match(r'^[0-9]+$', word[0]):
         return "numbers"
     if word[0] in "abcdef":
         return "af"
