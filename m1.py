@@ -8,7 +8,7 @@ from collections import defaultdict
 import heapq
 import re
 
-nltk.download('punkt_tab')
+# nltk.download('punkt_tab')
 # NOTE: NEED TO PIP INSTALL LXML
 
 ind_size = 5000
@@ -22,7 +22,7 @@ def json_files(path):
     files = []
     path = Path(path)
     for json_file in path.rglob("*.json"):
-        # print(json_file)
+        print(json_file)
         with json_file.open("r") as f:
             files.append(json.load(f))
 
@@ -56,16 +56,18 @@ def index(files):
     counter = 0
     running_count = 0
     part = 1
+    docID_url = {}
 
     for doc in files:
         print(doc['url'])
+        docID_url[running_count] = doc['url']
+        
         content = doc['content']
         tokens = tokenize(content)
         print()
         for word, freq_by_importance in tokens.items():
             for imp_level, freq in freq_by_importance.items():
                 index[word].append([running_count, freq, imp_level])
-                unitokens.add(word)
 
         counter += 1
         running_count += 1
@@ -80,6 +82,7 @@ def index(files):
     if len(index.keys()) != 0:
         index_partial(index, part)  # catches the final indexes
 
+    return docID_url
 
 def index_partial(index, part):
     if not os.path.exists(
@@ -91,6 +94,10 @@ def index_partial(index, part):
     with open(file, "w") as f:
         json.dump(index, f)
 
+def write_docID_url(docID_url): ## writes the document IDs and URLs to a file to return the results
+    file = os.path.join(os.getcwd(), "docID_url_map.json")
+    with open(file, "w") as f:
+        json.dump(docID_url, f)
 
 def index_complete():
     partial_paths = []
@@ -183,9 +190,11 @@ def write_report(total_tokens, total_files):
 
 def main(path):
     files = json_files(path)
-    index(files)
+    docID_url = index(files)
+    write_docID_url(docID_url)
     total_tokens = index_complete()
     write_report(total_tokens, len(files))
+
 
 
 if __name__ == "__main__":
