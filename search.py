@@ -2,8 +2,12 @@ import os
 import json
 import re
 import time
+import nltk.tokenize
+from nltk.stem import PorterStemmer
 
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
+stemmer = PorterStemmer()
+tokenizer = nltk.tokenize.RegexpTokenizer(r'[a-zA-Z0-9]+')
 
 def load_inverted_index():
     index = {}
@@ -18,12 +22,16 @@ def load_inverted_index():
 
 def index_getter(index, input):
     start = time.time()
-    split = [condition.strip() for condition in input.split("AND")]
+    split = tokenizer.tokenize(input)
+    # print(stems)
+    # split = [condition.strip() for condition in input.split("AND")]
     print(split)
 
     results = []
     for spl in split:
         if spl:
+            spl = stemmer.stem(spl)
+
             print(spl)
             spl = spl.lower()
             prefix = prefix_getter(index, spl)
