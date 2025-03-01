@@ -7,6 +7,8 @@ from nltk.stem import PorterStemmer
 from collections import defaultdict
 import heapq
 import re
+import math
+import time
 
 # nltk.download('punkt_tab')
 # NOTE: NEED TO PIP INSTALL LXML
@@ -45,7 +47,11 @@ def tokenize(text):
 
     for level, content in important_text.items():
         tokens = tokenizer.tokenize(content)
+        # print(tokens)
+        # time.sleep(10)
         for token in tokens:
+            # print(tokens)
+            # time.sleep(2)
             token = stemmer.stem(token)  # porter stemming
             word_dict[token][level] += 1
     return word_dict
@@ -67,7 +73,8 @@ def index(files):
         print()
         for word, freq_by_importance in tokens.items():
             for imp_level, freq in freq_by_importance.items():
-                index[word].append([running_count, freq, imp_level])
+                log_normalized_freq = math.log(1 + freq)
+                index[word].append([running_count, log_normalized_freq, imp_level])
 
         counter += 1
         running_count += 1
@@ -82,7 +89,7 @@ def index(files):
     if len(index.keys()) != 0:
         index_partial(index, part)  # catches the final indexes
 
-    return docID_url
+    return docID_url, running_count
 
 def index_partial(index, part):
     if not os.path.exists(
@@ -99,27 +106,66 @@ def write_docID_url(docID_url): ## writes the document IDs and URLs to a file to
     with open(file, "w") as f:
         json.dump(docID_url, f)
 
-def index_complete():
+def compute_idf(current_word_count, total_documents):
+    idf = math.log((total_documents / current_word_count) + 1)
+    return idf
+
+def index_complete(running_count):
     partial_paths = []
     for f in os.listdir(partial_index_directory):
         if f.endswith(".json"):
             partial_paths.append(os.path.join(partial_index_directory, f))
 
     iterators = []
+    iterators2 = []
     for path in partial_paths:
         iterators.append(iterator_partial(path))
+        iterators2.append(iterator_partial(path))
+
 
     merged = heapq.merge(*iterators,
                          key=lambda x: x[0])  # sorts the iterators based on the first letter, makes an iterator
 
-    current_prefix = None
-    current_data = defaultdict(list)
-    utoken = set()
+    # iterators2 = iterators.copy()
+    copymerged = heapq.merge(*iterators2,
+                         key=lambda x: x[0])  # sorts the iterators based on the first letter, makes an iterator
 
+    current_word = None
+    current_word_count = 0
+    idf_dict = defaultdict(int)
+    for word, info in copymerged:
+        print("word",word)
+        # time.sleep(1)
+        if current_word is None: ## sets the initial currenet word to be compared
+            # print("hit")
+            # time.sleep(1)
+            current_word = word
+            current_word_count = len(info)
+
+        elif current_word != word:
+            idf = compute_idf(current_word_count, running_count)
+            idf_dict[current_word] = idf
+            print("idf, current_word, current_count: ",idf, current_word, current_word_count)
+            # time.sleep(0.1)
+            current_word = word
+            current_word_count = len(info)
+
+        else:
+            # time.sleep(1)
+            current_word_count += len(info)
+    if current_word:
+        idf = compute_idf(current_word_count, running_count)
+        idf_dict[current_word] = idf
+
+    print(idf_dict, current_word_count)
     # THE IDEA IS:
     # everything is stored inside partial indexes, so there are iterators for each partial index
     # once you hit the next range: example: you hit "a" with your iterator, you switch from the
     # number files, and just to the "af" files. then you continue
+    
+    current_prefix = None
+    current_data = defaultdict(list)
+    utoken = set()
 
     for word, info in merged:
         utoken.add(word)  # the token counter
@@ -127,10 +173,15 @@ def index_complete():
 
         if current_prefix and prefix != current_prefix:  # checks if the new prefix == our old prefix
             save_partial_file(current_prefix, current_data)  #if not, writes the data
-            current_data.clear()  # clears the dictionary so we dont hold it
+            current_data.clear()  # clears the dictionary so we dont hold leftovers
 
         current_prefix = prefix  # sets the new prefix
-        current_data[word].extend(info)  # adds the word/info
+        print(info)
+        new_info = [[inf[0], round(inf[1] * idf_dict[word], 5), inf[2]] for inf in info] ## tf-idf
+                            ## tf = log(1 + tf), so we dont have as much weight on frequently appearing terms
+                            ## idf = log((total_docs / number of docs that contain that word) + 1) also for normalization
+        print(new_info)
+        current_data[word].extend(new_info)  # adds the word/info
 
     if current_data:  # sends off the last of the data
         save_partial_file(current_prefix, current_data)
@@ -190,13 +241,14 @@ def write_report(total_tokens, total_files):
 
 def main(path):
     files = json_files(path)
-    docID_url = index(files)
+    docID_url, running_count = index(files)
     write_docID_url(docID_url)
-    total_tokens = index_complete()
+    total_tokens = index_complete(running_count)
     write_report(total_tokens, len(files))
 
 
-
 if __name__ == "__main__":
-    path = "C:\\Harsh\\UC Irvine\\Coursework\\2025-Winter\\cs121\\developer\\DEV"
+    # path = "C:/users/16264/desktop/developer/DEV/"
+    path = "C:/users/16264/desktop/developer/ANALYST/www-db_ics_uci_edu"
+
     main(path)
