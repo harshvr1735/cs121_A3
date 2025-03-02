@@ -21,6 +21,25 @@ def load_inverted_index():
             index[name_split] = (open(path, "r"))
     return index
 
+#Cosine Similarity Calculation
+
+#Computing the dot product of two vectors
+def dot_product(vector1, vector2):
+    return sum(v1 * v2 for v1, v2 in zip(vector1, vector2))
+
+#Computing the magnitude of a vector
+def vector_magnitude(vector):
+    return math.sqrt(sum(v ** 2 for v in vector))
+
+#Computing the cosine similarity between two vectors
+def cosine_similarity(vector1, vector2):
+    vectors_product = dot_product(vector1, vector2)
+    vector1_magnitude = vector_magnitude(vector1)
+    vector2_magnitude = vector_magnitude(vector2)
+    if vector1_magnitude == 0 or vector2_magnitude == 0:
+        return 0
+    return vectors_product / (vector1_magnitude * vector2_magnitude)
+
 def index_getter(index, input):
     start = time.time()
     split = tokenizer.tokenize(input)
