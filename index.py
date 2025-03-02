@@ -56,7 +56,7 @@ def tokenize(text):
             word_dict[token][level] += 1
     return word_dict
 
-def term_frequency(freq):
+def compute_tf(freq):
     return math.log(1 + freq)
 
 def index(files):
@@ -75,7 +75,7 @@ def index(files):
         print()
         for word, freq_by_importance in tokens.items():
             for imp_level, freq in freq_by_importance.items():
-                log_normalized_tf = term_frequency(freq)
+                log_normalized_tf = compute_tf(freq)
                 index[word].append([running_count, log_normalized_tf, imp_level])
 
         counter += 1
@@ -111,6 +111,9 @@ def write_docID_url(docID_url): ## writes the document IDs and URLs to a file to
 def compute_idf(current_word_count, total_documents):
     idf = math.log((total_documents / current_word_count) + 1)
     return idf
+
+def compute_tf_idf(tf, idf):
+    return round(tf * idf, 5)
 
 def index_complete(running_count):
     partial_paths = []
@@ -179,7 +182,7 @@ def index_complete(running_count):
 
         current_prefix = prefix  # sets the new prefix
         print(info)
-        new_info = [[inf[0], round(inf[1] * idf_dict[word], 5), inf[2]] for inf in info] ## tf-idf
+        new_info = [[inf[0], compute_tf_idf(inf[1] * idf_dict[word]), inf[2]] for inf in info] ## tf-idf
                             ## tf = log(1 + tf), so we dont have as much weight on frequently appearing terms
                             ## idf = log((total_docs / number of docs that contain that word) + 1) also for normalization
         print(new_info)
