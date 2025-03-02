@@ -197,16 +197,8 @@ def index_complete(running_count):
 def get_prefix(word):  # names the files and checks prefixes
     if re.match(r'^[0-9]+$', word[0]):
         return "numbers"
-    if word[0] in "abcdef":
-        return "af"
-    elif word[0] in "ghijk":
-        return "gk"
-    elif word[0] in "lmnop":
-        return "lp"
-    elif word[0] in "qrstu":
-        return "qu"
-    elif word[0] in "vwxyz":
-        return "vz"
+    if word[0] in "abcdefghijklmnopqrstuvwxyz":
+        return word[0]
     else:
         return "nonalpha"
 
