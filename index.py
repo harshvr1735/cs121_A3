@@ -109,7 +109,7 @@ def write_docID_url(docID_url): ## writes the document IDs and URLs to a file to
         json.dump(docID_url, f)
 
 def compute_idf(current_word_count, total_documents):
-    idf = math.log((total_documents / current_word_count) + 1)
+    idf = math.log((total_documents + 1) / (current_word_count + 1)) + 1
     return idf
 
 def compute_tf_idf(tf, idf):
