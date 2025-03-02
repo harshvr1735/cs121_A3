@@ -3,6 +3,7 @@ import json
 import re
 import time
 import nltk.tokenize
+import math
 from nltk.stem import PorterStemmer
 import numpy as np
 
@@ -39,6 +40,23 @@ def cosine_similarity(vector1, vector2):
     if vector1_magnitude == 0 or vector2_magnitude == 0:
         return 0
     return vectors_product / (vector1_magnitude * vector2_magnitude)
+
+#Converting query into a vector of TF-IDF scores
+def get_query_vector(query_terms, index):
+    query_vector = []
+    for term in query_terms:
+        term = stemmer.stem(term)
+        try:
+            file = index[prefix]
+            file.seek(0)
+            a = json.load(file)
+            if term on a:
+                query_vector.append(a[term][0][1])
+            else:
+                query_vector.append(0)
+        except KeyError:
+            query_vector.append(0)
+    return query_vector
 
 def index_getter(index, input):
     start = time.time()
