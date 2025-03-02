@@ -50,7 +50,7 @@ def get_query_vector(query_terms, index):
             file = index[prefix]
             file.seek(0)
             a = json.load(file)
-            if term on a:
+            if term in a:
                 query_vector.append(a[term][0][1])
             else:
                 query_vector.append(0)
@@ -63,7 +63,7 @@ def get_document_vector(doc_id, query_terms, index):
     doc_vector = []
     for term in query_terms:
         term = stemmer.stem(term)
-        pregix = prefix_getter(index, term)
+        prefix = prefix_getter(index, term)
         try:
             file = index[prefix]
             file.seek(0)
@@ -79,46 +79,50 @@ def get_document_vector(doc_id, query_terms, index):
 
 def index_getter(index, input):
     start = time.time()
-    split = tokenizer.tokenize(input)
+    query_terms = tokenizer.tokenize(input)
+    query_terms = [stemmer.stem(term) for term in query_terms]
+    query_vector = get_query_vector(query_terms, index)
     # print(stems)
     # split = [condition.strip() for condition in input.split("AND")]
-    print(split)
+    print(query_terms)
 
     results = []
-    for spl in split:
-        if spl:
-            spl = stemmer.stem(spl)
+    for term in query_terms:
+        prefix = prefix_getter(index, term)
+        try:
+            file = index[prefix]
+            file.seek(0)
+            a = json.load(file)
+            if term in a:
+                doc_ids = set(item[0] for item in a[term])
+                results.append(doc_ids)
+        except KeyError:
+            print("Not found in index.")
 
-            print(spl)
-            spl = spl.lower()
-            prefix = prefix_getter(index, spl)
-            try:
-                file = index[prefix]
-                file.seek(0) ## resets to beginning of file
-                a = json.load(file) ## done so we can run the same word multiple times
-
-                with open("docID_url_map.json", "r") as f:
-                    set1 = set([item[0] for item in a.get(spl, [])])
-                    print(set1)
-                    results.append(set1)
-            except KeyError:
-                print("Not found in index.")
+    if not results:
+        print("No results found for the query.")
+        return
     
-    if results:
-        results.sort(key=len)
-        smallest = results[0] ## more efficient to AND smallest -> mid -> largest
-        for res in results:
-            smallest &= res ## actually TA says & doesnt work that well and returns bad results from a1
-            ## need to do something else
+    results.sort(key=len)
+    smallest = results[0] ## more efficient to AND smallest -> mid -> largest
+    for res in results:
+        smallest &= res ## actually TA says & doesnt work that well and returns bad results from a1
+        ## need to do something else
 
-        if smallest:
-            with open("docID_url_map.json", "r") as f:
-                docID_url = json.load(f)
-                for doc in list(smallest)[:10]:
-                    print(f"{doc}: {docID_url[str(doc)]}")
+    if smallest:
+        with open("docID_url_map.json", "r") as f:
+            docID_url = json.load(f)
+            doc_scores = []
+            for doc_id in smallest:
+                doc_vector = get_document_vector(doc_id, query_terms, index)
+                similarity = cosine_similarity(query_vector, doc_vector)
+                doc_scores.append((doc_id, similarity))
+            doc_scores.sort(key=lambda x: x[1], reverse=True)
+            for doc_id, score in doc_scores[:10]:
+                print(f"{doc_id}: {docID_url[str(doc_id)]} (Score: {score:.4f})")
 
     end = time.time()
-    print(end - start)
+    print(f"Query took {end - start} seconds to return results.")
     run(index)
 
 def prefix_getter(index, word):
