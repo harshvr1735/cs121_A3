@@ -56,8 +56,8 @@ def tokenize(text):
             word_dict[token][level] += 1
     return word_dict
 
-def term_frequency(doc, word):
-    return doc.count(word) / len(doc)
+def term_frequency(freq):
+    return math.log(1 + freq)
 
 def index(files):
     index = defaultdict(list)
@@ -75,8 +75,9 @@ def index(files):
         print()
         for word, freq_by_importance in tokens.items():
             for imp_level, freq in freq_by_importance.items():
-                tf = term_frequency(doc, word)
-                index[word].append([running_count, tf, imp_level])
+                log_normalized_tf = term_frequency(freq)
+                index[word].append([running_count, log_normalized_tf, imp_level])
+
         counter += 1
         running_count += 1
         print(counter)
