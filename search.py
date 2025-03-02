@@ -4,6 +4,7 @@ import re
 import time
 import nltk.tokenize
 from nltk.stem import PorterStemmer
+import numpy as np
 
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
 stemmer = PorterStemmer()
