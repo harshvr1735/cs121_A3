@@ -58,6 +58,25 @@ def get_query_vector(query_terms, index):
             query_vector.append(0)
     return query_vector
 
+#Converting document into a vector of TF-IDF scores for query terms
+def get_document_vector(doc_id, query_terms, index):
+    doc_vector = []
+    for term in query_terms:
+        term = stemmer.stem(term)
+        pregix = prefix_getter(index, term)
+        try:
+            file = index[prefix]
+            file.seek(0)
+            a = json.load(file)
+            if term in a:
+                tf_idf_score = next((item[1] for item in a[term] if item[0] == doc_id), 0)
+                doc_vector.append(tf_idf_score)
+            else:
+                doc_vector.append(0)
+        except KeyError:
+            doc_vector.append(0)
+    return doc_vector
+
 def index_getter(index, input):
     start = time.time()
     split = tokenizer.tokenize(input)
