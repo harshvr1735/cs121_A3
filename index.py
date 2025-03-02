@@ -18,7 +18,7 @@ partial_index_directory = os.path.join(os.getcwd(), "partial_index")
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
 stemmer = PorterStemmer()
 tokenizer = nltk.tokenize.RegexpTokenizer(r'[a-zA-Z0-9]+')
-
+positions = defaultdict(dict)
 
 def json_files(path):
     files = []
@@ -178,19 +178,21 @@ def index_complete(running_count):
 
         if current_prefix and prefix != current_prefix:  # checks if the new prefix == our old prefix
             save_partial_file(current_prefix, current_data)  #if not, writes the data
+            update_positions(current_prefix, current_data)
+
             current_data.clear()  # clears the dictionary so we dont hold leftovers
 
         current_prefix = prefix  # sets the new prefix
-        print(info)
-        new_info = [[inf[0], compute_tf_idf(inf[1] * idf_dict[word]), inf[2]] for inf in info] ## tf-idf
+        new_info = [[inf[0], compute_tf_idf(inf[1], idf_dict[word]), inf[2]] for inf in info] ## tf-idf
                             ## tf = log(1 + tf), so we dont have as much weight on frequently appearing terms
                             ## idf = log((total_docs / number of docs that contain that word) + 1) also for normalization
-        print(new_info)
         current_data[word].extend(new_info)  # adds the word/info
+
 
     if current_data:  # sends off the last of the data
         save_partial_file(current_prefix, current_data)
 
+    save_positions_to_file()  # Save positions after processing all prefixes
     return len(utoken)
 
 
@@ -208,7 +210,44 @@ def save_partial_file(prefix, data):
         os.makedirs(complete_index_directory)
     file_path = os.path.join(complete_index_directory, f"complete_index_{prefix}.json")
     with open(file_path, "w") as f:
-        json.dump(data, f)
+        f.write("[\n")
+        
+        first = True
+        for word, postings in data.items():
+            if not first:
+                f.write(",\n")
+            json.dump({"word": word, "postings": postings}, f)
+            first = False
+        f.write("\n]")
+
+
+
+def update_positions(prefix, data):
+    file_path = os.path.join(complete_index_directory, f"complete_index_{prefix}.json")
+    temp_positions = {}
+    with open(file_path, "rb") as f:
+        byte_offset = f.tell()
+        for word in data.keys():
+            print(byte_offset)
+
+            temp_positions[word] = byte_offset
+            line = f.readline() ## just moves the counter to the next line
+            byte_offset = f.tell()
+    positions[prefix] = temp_positions
+
+def save_positions_to_file():
+    position_file_path = os.path.join(complete_index_directory, "positions.json")
+    with open(position_file_path, "w") as f:
+        # json.dump(positions, f)
+        f.write("[\n")
+        
+        first = True
+        for prefix, position in positions.items():
+            if not first:
+                f.write(",\n")
+            json.dump({"prefix": prefix, "position": position}, f)
+            first = False
+        f.write("\n]")
 
 
 def iterator_partial(file_path):  # makes the iterators
