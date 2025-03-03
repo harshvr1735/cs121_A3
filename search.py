@@ -163,17 +163,25 @@ def get_document_vector(doc_id, query_terms, index, positions):
                 print(f"{term} not found in index.")
                 continue
             position = term_position[term]
-
+            doc_time = time.time()
             postings = set((doc_id, tfidf) for doc_id, tfidf, _ in read_json(index[prefix], position, term))
-
+            # postings = read_json(index[prefix], position, term)
+            # print(postings)
+            # time.sleep(2)
+            # for doc, tfidf, _ in postings:
+            #     if doc == doc_id:
+            #         doc_vector.append(tfidf)
             tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
             # print("DOCUMENT VECTOR TDIDF: ", tf_idf_score)
             doc_vector.append(tf_idf_score)
             # else:
             #     doc_vector.append(0)
+            print("inner doc time:", time.time() - doc_time)
+
         except KeyError:
             doc_vector.append(0)
     # print("doc time:", time.time() - doc_time)
+    # print(doc_vector)
     return doc_vector
 #####
 
@@ -233,16 +241,27 @@ def index_getter(index, positions, input, docID_url):
             cosine_time = time.time()
             
             doc_scores = []
-            for doc_id in smallest:
-                doc_time = time.time()
-                doc_vector = get_document_vector(doc_id, query_terms, index, positions) ## takes around 0.02
-                print("DOC TIME:", time.time() - doc_time)
+            if len(query_terms) == 1: ## we dont need to find cosine similarity in single token words
+                term = query_terms[0]
+                prefix = prefix_getter(term)
+                position = positions[prefix][term]
 
-                # sim_time = time.time()
-                similarity = cosine_similarity(query_vector, doc_vector) ## takes 0.0
-                # print("SIM TIME: ", time.time() - sim_time)
+                for id, tfidf, _ in read_json(index[prefix], position, term):
+                    if id in smallest:
+                        doc_scores.append((id, tfidf))
 
-                doc_scores.append((doc_id, similarity))
+            else:
+                for doc_id in smallest:
+                    doc_time = time.time()
+                    doc_vector = get_document_vector(doc_id, query_terms, index, positions) ## takes around 0.02
+                    print("DOC TIME:", time.time() - doc_time)
+
+                    # sim_time = time.time()
+                    similarity = cosine_similarity(query_vector, doc_vector) ## takes 0.0
+                    # print("SIM TIME: ", time.time() - sim_time)
+
+                    doc_scores.append((doc_id, similarity))
+
             doc_scores.sort(key=lambda x: x[1], reverse=True)
             for doc_id, score in doc_scores[:5]:
                 print(f"{doc_id}: {docID_url[str(doc_id)]} (Score: {score:.4f})")
