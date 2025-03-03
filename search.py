@@ -70,59 +70,73 @@ def cosine_similarity(vector1, vector2):
     vectors_product = dot_product(vector1, vector2)
     vector1_magnitude = vector_magnitude(vector1)
     vector2_magnitude = vector_magnitude(vector2)
-    print("vector magnitudes", vector1_magnitude, vector2_magnitude)
-    print("vectors product",vectors_product)
+    # print("vector magnitudes", vector1_magnitude, vector2_magnitude)
+    # print("vectors product",vectors_product)
     if vector1_magnitude == 0 or vector2_magnitude == 0:
         return 0
     similarity = vectors_product / (vector1_magnitude * vector2_magnitude)
-    print("SIMILARTIY: ",similarity)
-    print()
+    # print("SIMILARTIY: ",similarity)
+    # print()
     return similarity
 
-def get_query_vector(query_terms, index):
+def get_query_vector(query_terms, index, positions):
     query_vector = []
     for term in query_terms:
         term = stemmer.stem(term)
         try:
             prefix = prefix_getter(term)
 
-            file = index[prefix]
-            file.seek(0)
-            a = json.load(file)
+            # file = index[prefix]
+            # file.seek(0)
+            # a = json.load(file)
+            term_position = positions[prefix]
+            if term not in term_position:
+                print(f"{term} not found in index.")
+                continue
+            position = term_position[term]
+
+            postings = set(tfidf for _, tfidf, _ in read_json(index[prefix], position, term))
+
             # print("query vector: ", a)
-            for entry in a:
+            # for entry in a:
                 # print("entry: ", entry)
-                if term == entry["word"]:
-                    print("IF TERM IN A")
+                # if term == entry["word"]:
+                    # print("IF TERM IN A")
                     # print(entry['postings'][0][1])
-                    query_vector.extend([posting[1] for posting in entry["postings"]])
-                    break
-            else:
-                query_vector.append(0)
+            # print("postings: ", postings)
+
+            for posting in postings:
+                query_vector.append(posting)
+                    # break
+            # else:
+            #     query_vector.append(0)
         except KeyError:
             query_vector.append(0)
-    print(query_vector)
+    # print(query_vector)
+    # time.sleep(3)
     return query_vector
 
-def get_document_vector(doc_id, query_terms, index):
+def get_document_vector(doc_id, query_terms, index, positions):
     doc_vector = []
     for term in query_terms:
         term = stemmer.stem(term)
         prefix = prefix_getter(term)
         try:
-            file = index[prefix]
-            file.seek(0)
-            a = json.load(file)
-            for entry in a:
-                # print("entry: ", entry)
-                if term == entry["word"]:
+            term_position = positions[prefix]
+            if term not in term_position:
+                print(f"{term} not found in index.")
+                continue
+            position = term_position[term]
+
+            postings = set((doc_id, tfidf) for doc_id, tfidf, _ in read_json(index[prefix], position, term))
+
             # if term in a:
-            
-                    tf_idf_score = next((posting[1] for posting in entry["postings"] if posting[0] == doc_id), 0)
-                    print("DOCUMENT VECTOR TDIDF: ", tf_idf_score)
-                    doc_vector.append(tf_idf_score)
-            else:
-                doc_vector.append(0)
+            # print(postings)
+            tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
+            # print("DOCUMENT VECTOR TDIDF: ", tf_idf_score)
+            doc_vector.append(tf_idf_score)
+            # else:
+            #     doc_vector.append(0)
         except KeyError:
             doc_vector.append(0)
     return doc_vector
@@ -139,7 +153,7 @@ def index_getter(index, positions, input, docID_url):
     # split = [stemmer.stem(token.lower()) for token in tokenizer.tokenize(input)]
     query_terms = tokenizer.tokenize(input)
     query_terms = [stemmer.stem(term.lower()) for term in query_terms]
-    query_vector = get_query_vector(query_terms, index)
+    query_vector = get_query_vector(query_terms, index, positions)
     # print(stems)
     # split = [condition.strip() for condition in input.split("AND")]
 
@@ -170,26 +184,27 @@ def index_getter(index, positions, input, docID_url):
             print("Not found in index.")
 
     if results:
-
+        result_time = time.time()
         results.sort(key=len)
         smallest = results[0] ## more efficient to AND smallest -> mid -> largest
         for res in results:
             smallest &= res
             # smallest = smallest.intersection(res) ## actually TA says & doesnt work that well and returns bad results from a1
             ## need to do something else
-
+        print("ANDing: ", time.time() - result_time)
         if smallest:
-            with open("docID_url_map.json", "r") as f:
-                docID_url = json.load(f)
-                doc_scores = []
-                for doc_id in smallest:
-                    doc_vector = get_document_vector(doc_id, query_terms, index)
-                    similarity = cosine_similarity(query_vector, doc_vector)
-                    doc_scores.append((doc_id, similarity))
-                doc_scores.sort(key=lambda x: x[1], reverse=True)
-                for doc_id, score in doc_scores[:10]:
-                    print(f"{doc_id}: {docID_url[str(doc_id)]} (Score: {score:.4f})")
+            cosine_time = time.time()
+            
+            doc_scores = []
+            for doc_id in smallest:
+                doc_vector = get_document_vector(doc_id, query_terms, index, positions)
+                similarity = cosine_similarity(query_vector, doc_vector)
+                doc_scores.append((doc_id, similarity))
+            doc_scores.sort(key=lambda x: x[1], reverse=True)
+            for doc_id, score in doc_scores[:10]:
+                print(f"{doc_id}: {docID_url[str(doc_id)]} (Score: {score:.4f})")
 
+            print("cosine time: ", time.time() - cosine_time)
 
     end = time.time()
     print("Query took: ", end - start)
