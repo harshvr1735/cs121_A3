@@ -12,21 +12,56 @@ stemmer = PorterStemmer()
 tokenizer = nltk.tokenize.RegexpTokenizer(r'[a-zA-Z0-9]+')
 
 def read_json(file_path, position, key):
+    # print(key)
+    # time.sleep(2)
     file_path.seek(position)
-    chunk = file_path.read(1000) ## may need to up the threshold for v v common words ?
-
+    # print(position)
+    chunk = file_path.read(190000) ## may need to up the threshold for v v common words ?
+    # print(chunk)
+    # time.sleep(5)
     try:
         start = chunk.find('{"word":')
-        end = chunk.find('}', start) + 1
-        word_postings = chunk[start:end]
+        # end = chunk.find('}', start) + 1
+        # end = chunk.find('}', start)
+        # print(chunk.find('}', start))
+        end = chunk.find('}', start)
+        # print("END: ", end)
+        # time.sleep(2)
+        if end == -1:
+            last_comma = chunk.rfind(',', start)
+            if last_comma != -1:
+                latest_closed_bracket = chunk.rfind(']', start)
+                if last_comma + 2 != latest_closed_bracket:
+                    # print("KYS")
+                    # time.sleep(3)
+                    truncated_chunk = chunk[:latest_closed_bracket] + "]]}"
+                else:
+                    print("CONTAINS COMMA")
+                    # time.sleep(2)
+                    truncated_chunk = chunk[:last_comma] + "]]}"
+            else:
+                print("SOMETHING ELSE")
+                # time.sleep(2)
+                truncated_chunk = chunk[:start] + "]}"
+        else:
+            truncated_chunk = chunk[:end + 1]
+        # print()
+        # print(truncated_chunk)
+        # time.sleep(5)
+        # print()
+        word_postings = truncated_chunk
 
-        print("ACTUAL CHUNK: ", word_postings)
-        print()
+        # print("ACTUAL CHUNK: ", word_postings)
+        # print()
         data = json.loads(word_postings)
+        # print("HI!")
+        # time.sleep(2)
         if data.get("word") == key:
             return data.get("postings", [])
         
     except json.JSONDecodeError:
+        print("JSON ERROR")
+        time.sleep(1)
         pass
 
     print("NOT FOUND")
@@ -117,6 +152,7 @@ def get_query_vector(query_terms, index, positions):
     return query_vector
 
 def get_document_vector(doc_id, query_terms, index, positions):
+    # doc_time = time.time()
     doc_vector = []
     for term in query_terms:
         term = stemmer.stem(term)
@@ -130,8 +166,6 @@ def get_document_vector(doc_id, query_terms, index, positions):
 
             postings = set((doc_id, tfidf) for doc_id, tfidf, _ in read_json(index[prefix], position, term))
 
-            # if term in a:
-            # print(postings)
             tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
             # print("DOCUMENT VECTOR TDIDF: ", tf_idf_score)
             doc_vector.append(tf_idf_score)
@@ -139,6 +173,7 @@ def get_document_vector(doc_id, query_terms, index, positions):
             #     doc_vector.append(0)
         except KeyError:
             doc_vector.append(0)
+    # print("doc time:", time.time() - doc_time)
     return doc_vector
 #####
 
@@ -159,6 +194,8 @@ def index_getter(index, positions, input, docID_url):
 
     results = []
     for term in query_terms:
+        print(term)
+        # time.sleep(2)
         try:
             prefix = prefix_getter(term)
             if prefix == "invalid":
@@ -197,11 +234,17 @@ def index_getter(index, positions, input, docID_url):
             
             doc_scores = []
             for doc_id in smallest:
-                doc_vector = get_document_vector(doc_id, query_terms, index, positions)
-                similarity = cosine_similarity(query_vector, doc_vector)
+                doc_time = time.time()
+                doc_vector = get_document_vector(doc_id, query_terms, index, positions) ## takes around 0.02
+                print("DOC TIME:", time.time() - doc_time)
+
+                # sim_time = time.time()
+                similarity = cosine_similarity(query_vector, doc_vector) ## takes 0.0
+                # print("SIM TIME: ", time.time() - sim_time)
+
                 doc_scores.append((doc_id, similarity))
             doc_scores.sort(key=lambda x: x[1], reverse=True)
-            for doc_id, score in doc_scores[:10]:
+            for doc_id, score in doc_scores[:5]:
                 print(f"{doc_id}: {docID_url[str(doc_id)]} (Score: {score:.4f})")
 
             print("cosine time: ", time.time() - cosine_time)
