@@ -50,9 +50,10 @@ def tokenize(text):
         # print(tokens)
         # time.sleep(10)
         for token in tokens:
+            token = token.lower()
             # print(tokens)
             # time.sleep(2)
-            token = stemmer.stem(token)  # porter stemming
+            token = stemmer.stem(token.lower())  # porter stemming
             word_dict[token][level] += 1
     return word_dict
 
@@ -109,7 +110,7 @@ def write_docID_url(docID_url): ## writes the document IDs and URLs to a file to
         json.dump(docID_url, f)
 
 def compute_idf(current_word_count, total_documents):
-    idf = math.log((total_documents + 1) / (current_word_count + 1))
+    idf = math.log((total_documents + 1) / (current_word_count + 1)) + 1
     return idf
 
 def compute_tf_idf(tf, idf):
@@ -162,7 +163,7 @@ def index_complete(running_count):
         idf = compute_idf(current_word_count, running_count)
         idf_dict[current_word] = idf
 
-    print(idf_dict, current_word_count)
+    # print(idf_dict, current_word_count)
     # THE IDEA IS:
     # everything is stored inside partial indexes, so there are iterators for each partial index
     # once you hit the next range: example: you hit "a" with your iterator, you switch from the
@@ -191,6 +192,9 @@ def index_complete(running_count):
 
     if current_data:  # sends off the last of the data
         save_partial_file(current_prefix, current_data)
+            
+            
+    update_positions(current_prefix, current_data)
 
     save_positions_to_file()  # Save positions after processing all prefixes
     return len(utoken)
@@ -198,7 +202,7 @@ def index_complete(running_count):
 
 def get_prefix(word):  # names the files and checks prefixes
     if re.match(r'^[0-9]+$', word[0]):
-        return "numbers"
+        return word[0]
     if word[0] in "abcdefghijklmnopqrstuvwxyz":
         return word[0]
     else:
@@ -214,9 +218,10 @@ def save_partial_file(prefix, data):
         
         first = True
         for word, postings in data.items():
+            sorted_postings = sorted(postings, key=lambda x: x[1], reverse=True)
             if not first:
                 f.write(",\n")
-            json.dump({"word": word, "postings": postings}, f)
+            json.dump({"word": word, "postings": sorted_postings}, f)
             first = False
         f.write("\n]")
 
@@ -226,9 +231,10 @@ def update_positions(prefix, data):
     file_path = os.path.join(complete_index_directory, f"complete_index_{prefix}.json")
     temp_positions = {}
     with open(file_path, "rb") as f:
+        line = f.readline()
         byte_offset = f.tell()
         for word in data.keys():
-            print(byte_offset)
+            # print(byte_offset)
 
             temp_positions[word] = byte_offset
             line = f.readline() ## just moves the counter to the next line
@@ -284,7 +290,7 @@ def main(path):
 
 
 if __name__ == "__main__":
-    # path = "C:/users/16264/desktop/developer/DEV/"
-    path = "C:/users/16264/desktop/developer/ANALYST/www-db_ics_uci_edu"
+    path = "C:/users/16264/desktop/developer/DEV/"
+    # path = "C:/users/16264/desktop/developer/ANALYST/www-db_ics_uci_edu"
 
     main(path)
