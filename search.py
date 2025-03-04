@@ -7,6 +7,8 @@ from nltk.stem import PorterStemmer
 import numpy as np
 import math
 
+import bisect
+
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
 stemmer = PorterStemmer()
 tokenizer = nltk.tokenize.RegexpTokenizer(r'[a-zA-Z0-9]+')
@@ -16,9 +18,11 @@ def read_json(file_path, position, key):
     # time.sleep(2)
     file_path.seek(position)
     # print(position)
-    chunk = file_path.read(190000) ## may need to up the threshold for v v common words ?
+    # chunk = file_path.read(190000) ## may need to up the threshold for v v common words ?
     # print(chunk)
+    chunk = file_path.readline()
     # time.sleep(5)
+    # print(chunk)
     try:
         start = chunk.find('{"word":')
         # end = chunk.find('}', start) + 1
@@ -115,6 +119,7 @@ def cosine_similarity(vector1, vector2):
     return similarity
 
 def get_query_vector(query_terms, index, positions):
+    term_postings = {}
     query_vector = []
     for term in query_terms:
         term = stemmer.stem(term)
@@ -130,8 +135,8 @@ def get_query_vector(query_terms, index, positions):
                 continue
             position = term_position[term]
 
-            postings = set(tfidf for _, tfidf, _ in read_json(index[prefix], position, term))
-
+            postings = set((doc_id, tfidf) for doc_id, tfidf, _ in read_json(index[prefix], position, term))
+            term_postings[term] = postings
             # print("query vector: ", a)
             # for entry in a:
                 # print("entry: ", entry)
@@ -139,7 +144,7 @@ def get_query_vector(query_terms, index, positions):
                     # print("IF TERM IN A")
                     # print(entry['postings'][0][1])
             # print("postings: ", postings)
-
+            postings = [tfidf for _, tfidf in postings]
             for posting in postings:
                 query_vector.append(posting)
                     # break
@@ -149,9 +154,9 @@ def get_query_vector(query_terms, index, positions):
             query_vector.append(0)
     # print(query_vector)
     # time.sleep(3)
-    return query_vector
+    return query_vector, term_postings
 
-def get_document_vector(doc_id, query_terms, index, positions):
+def get_document_vector(doc_id, query_terms, index, positions, term_postings):
     # doc_time = time.time()
     doc_vector = []
     for term in query_terms:
@@ -162,20 +167,27 @@ def get_document_vector(doc_id, query_terms, index, positions):
             if term not in term_position:
                 print(f"{term} not found in index.")
                 continue
-            position = term_position[term]
+            # position = term_position[term]
             doc_time = time.time()
-            postings = set((doc_id, tfidf) for doc_id, tfidf, _ in read_json(index[prefix], position, term))
+            # postings = set((doc_id, tfidf) for doc_id, tfidf, _ in read_json(index[prefix], position, term))
             # postings = read_json(index[prefix], position, term)
+            postings = term_postings[term]
+            print("postings generate:", time.time() - doc_time)
             # print(postings)
-            # time.sleep(2)
-            # for doc, tfidf, _ in postings:
-            #     if doc == doc_id:
-            #         doc_vector.append(tfidf)
-            tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
+
+            print("number of postings:", len(postings))
+            # print(postings)
+            # time.sleep(1)
+            tf_idf_score = bin_search(list(postings), doc_id)
+            # print(tf_idf_score)
+            # time.sleep(5)
+            # postings = list(postings)
+            # postings.sort(key=lambda x: x[0])
+
+            # tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
             # print("DOCUMENT VECTOR TDIDF: ", tf_idf_score)
             doc_vector.append(tf_idf_score)
-            # else:
-            #     doc_vector.append(0)
+
             print("inner doc time:", time.time() - doc_time)
 
         except KeyError:
@@ -185,25 +197,29 @@ def get_document_vector(doc_id, query_terms, index, positions):
     return doc_vector
 #####
 
-
+def bin_search(postings, doc_id):
+    postings.sort(key=lambda x: x[0])
+    doc_ids = np.array([posting[0] for posting in postings])
+    index = np.searchsorted(doc_ids, doc_id)
+    if index < len(postings) and doc_ids[index] == doc_id:
+        # print("binsearch time: ",time.time() - bin_search)
+        return postings[index][1]
+    else:
+        return 0 ## not found
 
 
 
 
 def index_getter(index, positions, input, docID_url):
     start = time.time()
-    # split = tokenizer.tokenize(input)
-    # split = [stemmer.stem(token.lower()) for token in tokenizer.tokenize(input)]
+
     query_terms = tokenizer.tokenize(input)
     query_terms = [stemmer.stem(term.lower()) for term in query_terms]
-    query_vector = get_query_vector(query_terms, index, positions)
-    # print(stems)
-    # split = [condition.strip() for condition in input.split("AND")]
+    query_vector, term_postings = get_query_vector(query_terms, index, positions)
 
     results = []
     for term in query_terms:
         print(term)
-        # time.sleep(2)
         try:
             prefix = prefix_getter(term)
             if prefix == "invalid":
@@ -217,10 +233,6 @@ def index_getter(index, positions, input, docID_url):
                 print(f"{term} not found in index.")
                 continue
             position = term_position[term]
-            # positions = os.path.join(complete_index_directory, "positions.json")
-
-
-            # path = os.path.join(complete_index_directory, f"complete_index_{prefix}.json")
             postings = set(doc_id for doc_id, _, _ in read_json(index[prefix], position, term))
 
             results.append(postings)
@@ -236,7 +248,8 @@ def index_getter(index, positions, input, docID_url):
             smallest &= res
             # smallest = smallest.intersection(res) ## actually TA says & doesnt work that well and returns bad results from a1
             ## need to do something else
-        print("ANDing: ", time.time() - result_time)
+        print(len(smallest))
+        # time.sleep(4)
         if smallest:
             cosine_time = time.time()
             
@@ -251,14 +264,13 @@ def index_getter(index, positions, input, docID_url):
                         doc_scores.append((id, tfidf))
 
             else:
-                for doc_id in smallest:
+                smallest = list(smallest)
+                for doc_id in smallest[:50]:
                     doc_time = time.time()
-                    doc_vector = get_document_vector(doc_id, query_terms, index, positions) ## takes around 0.02
+                    doc_vector = get_document_vector(doc_id, query_terms, index, positions, term_postings) ## takes around 0.02
                     print("DOC TIME:", time.time() - doc_time)
 
-                    # sim_time = time.time()
                     similarity = cosine_similarity(query_vector, doc_vector) ## takes 0.0
-                    # print("SIM TIME: ", time.time() - sim_time)
 
                     doc_scores.append((doc_id, similarity))
 
