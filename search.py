@@ -178,13 +178,13 @@ def get_document_vector(doc_id, query_terms, index, positions, term_postings):
             print("number of postings:", len(postings))
             # print(postings)
             # time.sleep(1)
-            tf_idf_score = bin_search(list(postings), doc_id)
+            # tf_idf_score = bin_search(list(postings), doc_id)
             # print(tf_idf_score)
             # time.sleep(5)
             # postings = list(postings)
             # postings.sort(key=lambda x: x[0])
 
-            # tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
+            tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
             # print("DOCUMENT VECTOR TDIDF: ", tf_idf_score)
             doc_vector.append(tf_idf_score)
 
