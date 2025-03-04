@@ -14,52 +14,33 @@ stemmer = PorterStemmer()
 tokenizer = nltk.tokenize.RegexpTokenizer(r'[a-zA-Z0-9]+')
 
 def read_json(file_path, position, key):
-    # print(key)
-    # time.sleep(2)
+
     file_path.seek(position)
-    # print(position)
-    # chunk = file_path.read(190000) ## may need to up the threshold for v v common words ?
-    # print(chunk)
-    chunk = file_path.readline()
-    # time.sleep(5)
-    # print(chunk)
-    try:
+    # chunk = file_path.read(200000) ## this would be better if implemented sorting by tfidf
+    ## for ex, we prioritize looking at everyyy posting. this limits it to like 15000 bytes of characters
+
+    chunk = file_path.readline() ## this is if we want every posting
+
+    try:## this is for if we read by bytes. readline() doesnt need this block
         start = chunk.find('{"word":')
-        # end = chunk.find('}', start) + 1
-        # end = chunk.find('}', start)
-        # print(chunk.find('}', start))
         end = chunk.find('}', start)
-        # print("END: ", end)
-        # time.sleep(2)
         if end == -1:
             last_comma = chunk.rfind(',', start)
             if last_comma != -1:
                 latest_closed_bracket = chunk.rfind(']', start)
                 if last_comma + 2 != latest_closed_bracket:
-                    # print("KYS")
-                    # time.sleep(3)
                     truncated_chunk = chunk[:latest_closed_bracket] + "]]}"
                 else:
                     print("CONTAINS COMMA")
-                    # time.sleep(2)
                     truncated_chunk = chunk[:last_comma] + "]]}"
             else:
                 print("SOMETHING ELSE")
-                # time.sleep(2)
                 truncated_chunk = chunk[:start] + "]}"
         else:
             truncated_chunk = chunk[:end + 1]
-        # print()
-        # print(truncated_chunk)
-        # time.sleep(5)
-        # print()
         word_postings = truncated_chunk
 
-        # print("ACTUAL CHUNK: ", word_postings)
-        # print()
         data = json.loads(word_postings)
-        # print("HI!")
-        # time.sleep(2)
         if data.get("word") == key:
             return data.get("postings", [])
         
@@ -88,7 +69,6 @@ def load_inverted_index():
     for file in os.listdir(complete_index_directory):
         if file.endswith(".json"):
             name_split = file.split("_")[-1].split(".")[0]
-            # print(name_split)
             path = os.path.join(complete_index_directory, file)
 
             index[name_split] = (open(path, "r"))
@@ -100,22 +80,21 @@ def load_inverted_index():
 
 ####
 def dot_product(vector1, vector2):
-    return sum(v1 * v2 for v1, v2 in zip(vector1, vector2))
+    return np.dot(vector1, vector2)
+    # return sum(v1 * v2 for v1, v2 in zip(vector1, vector2))
 
 def vector_magnitude(vector):
-    return math.sqrt(sum(v ** 2 for v in vector))
+    return np.linalg.norm(vector)
+    # return math.sqrt(sum(v ** 2 for v in vector))
+    
 
 def cosine_similarity(vector1, vector2):
     vectors_product = dot_product(vector1, vector2)
     vector1_magnitude = vector_magnitude(vector1)
     vector2_magnitude = vector_magnitude(vector2)
-    # print("vector magnitudes", vector1_magnitude, vector2_magnitude)
-    # print("vectors product",vectors_product)
     if vector1_magnitude == 0 or vector2_magnitude == 0:
         return 0
     similarity = vectors_product / (vector1_magnitude * vector2_magnitude)
-    # print("SIMILARTIY: ",similarity)
-    # print()
     return similarity
 
 def get_query_vector(query_terms, index, positions):
@@ -126,87 +105,82 @@ def get_query_vector(query_terms, index, positions):
         try:
             prefix = prefix_getter(term)
 
-            # file = index[prefix]
-            # file.seek(0)
-            # a = json.load(file)
             term_position = positions[prefix]
             if term not in term_position:
                 print(f"{term} not found in index.")
                 continue
             position = term_position[term]
 
-            postings = set((doc_id, tfidf) for doc_id, tfidf, _ in read_json(index[prefix], position, term))
+            postings = set((doc_id, tfidf, text_type) for doc_id, tfidf, text_type in read_json(index[prefix], position, term))
             term_postings[term] = postings
-            # print("query vector: ", a)
-            # for entry in a:
-                # print("entry: ", entry)
-                # if term == entry["word"]:
-                    # print("IF TERM IN A")
-                    # print(entry['postings'][0][1])
-            # print("postings: ", postings)
-            postings = [tfidf for _, tfidf in postings]
-            for posting in postings:
-                query_vector.append(posting)
-                    # break
-            # else:
-            #     query_vector.append(0)
+
+            tf_idf_sum = 0 ## finds the average of allll the tfidf scores for a query term
+            for _, tfidf, text_type in postings:
+                if text_type in ['b', 'title', 'h1', 'h2', 'h3']: ##weights on text styling
+                    tfidf *= 1.5
+                tf_idf_sum += tfidf
+
+            average_tf_idf = tf_idf_sum / len(postings)
+            query_vector.append(average_tf_idf)
+
         except KeyError:
             query_vector.append(0)
-    # print(query_vector)
-    # time.sleep(3)
     return query_vector, term_postings
 
 def get_document_vector(doc_id, query_terms, index, positions, term_postings):
-    # doc_time = time.time()
     doc_vector = []
     for term in query_terms:
-        term = stemmer.stem(term)
+        # term = stemmer.stem(term)
         prefix = prefix_getter(term)
         try:
             term_position = positions[prefix]
             if term not in term_position:
                 print(f"{term} not found in index.")
                 continue
-            # position = term_position[term]
             doc_time = time.time()
-            # postings = set((doc_id, tfidf) for doc_id, tfidf, _ in read_json(index[prefix], position, term))
-            # postings = read_json(index[prefix], position, term)
             postings = term_postings[term]
-            print("postings generate:", time.time() - doc_time)
-            # print(postings)
 
-            print("number of postings:", len(postings))
-            # print(postings)
-            # time.sleep(1)
-            # tf_idf_score = bin_search(list(postings), doc_id)
-            # print(tf_idf_score)
-            # time.sleep(5)
-            # postings = list(postings)
-            # postings.sort(key=lambda x: x[0])
+            # print("number of postings:", len(postings))
+
+            # tf_idf_score = bin_search(list(postings), doc_id) ## MAKES IT 3 SECONDS LONGER THAN NEXT(())???
+            ## its taking so long bc this requires a list, but next(()) only needs a set. ok.
 
             tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
-            # print("DOCUMENT VECTOR TDIDF: ", tf_idf_score)
-            doc_vector.append(tf_idf_score)
+            if any(posting[0] == doc_id and posting[2] in ['b', 'title', 'h1', 'h2', 'h3'] for posting in postings):
+                tf_idf_score *= 1.5
 
-            print("inner doc time:", time.time() - doc_time)
+            doc_vector.append(tf_idf_score)
 
         except KeyError:
             doc_vector.append(0)
-    # print("doc time:", time.time() - doc_time)
-    # print(doc_vector)
     return doc_vector
-#####
 
-def bin_search(postings, doc_id):
-    postings.sort(key=lambda x: x[0])
-    doc_ids = np.array([posting[0] for posting in postings])
-    index = np.searchsorted(doc_ids, doc_id)
-    if index < len(postings) and doc_ids[index] == doc_id:
-        # print("binsearch time: ",time.time() - bin_search)
-        return postings[index][1]
-    else:
-        return 0 ## not found
+def get_documents_containing_all_terms(query_terms, term_postings):
+    ## init a set of documents that contains the first term
+    # print(term_postings.keys())
+    dict(sorted(term_postings.items(), key=lambda item: item[1]))
+    # time.sleep(2)
+    first_term = query_terms[0]
+    term_postings_for_first_term = term_postings.get(first_term, [])
+    
+    if not term_postings_for_first_term:
+        return set()
 
+    #start with the set of documents for the first term
+    result_docs = set(doc_id for doc_id, _, _ in term_postings_for_first_term)
+    print("TERM: ", first_term)
+    # intersect with documents containing all other terms
+    for term in query_terms[1:]:
+        print("TERM: ", term)
+
+        term_postings_for_current_term = term_postings.get(term, [])
+        if not term_postings_for_current_term:
+            return set()  # if any term isnt in the index return an empty set
+
+        term_docs = set(doc_id for doc_id, _, _ in term_postings_for_current_term)
+        result_docs &= term_docs  # intersect
+
+    return result_docs
 
 
 
@@ -217,76 +191,49 @@ def index_getter(index, positions, input, docID_url):
     query_terms = [stemmer.stem(term.lower()) for term in query_terms]
     query_vector, term_postings = get_query_vector(query_terms, index, positions)
 
-    results = []
-    for term in query_terms:
-        print(term)
-        try:
+    print("query_vector time: ", time.time() - start)
+    result_docs = get_documents_containing_all_terms(query_terms, term_postings) ##
+    print("doc intersection:", time.time() - start)
+
+    if result_docs:
+        doc_scores = []
+        cosine_time = time.time()
+        print("Number of results: ",len(result_docs))
+
+
+        if len(query_terms) == 1: ## we dont need to find cosine similarity in single token words
+            term = query_terms[0]
             prefix = prefix_getter(term)
-            if prefix == "invalid":
-                run(index, docID_url)
-            if not prefix or prefix not in index or prefix not in positions:
-                continue
-            lookupstart = time.time()
+            position = positions[prefix][term]
 
-            term_position = positions[prefix]
-            if term not in term_position:
-                print(f"{term} not found in index.")
-                continue
-            position = term_position[term]
-            postings = set(doc_id for doc_id, _, _ in read_json(index[prefix], position, term))
+            for id, tfidf, _ in read_json(index[prefix], position, term):
+                if id in result_docs:
+                    doc_scores.append((id, tfidf))
+        else:
+            result_docs = list(result_docs)[:25]
+            result_docs = set(result_docs)
+            for doc_id in result_docs:
+                doc_time = time.time()
+                doc_vector = get_document_vector(doc_id, query_terms, index, positions, term_postings)
+                print("DOC TIME: ", time.time() - doc_time)
+                # cos_simtime = time.time()
+                similarity = cosine_similarity(query_vector, doc_vector)
+                # print("cos sim time:", time.time() - cos_simtime)
+                doc_scores.append((doc_id, similarity))
 
-            results.append(postings)
-            print("lookup time: ", time.time() -  lookupstart)
-        except KeyError:
-            print("Not found in index.")
-
-    if results:
-        result_time = time.time()
-        results.sort(key=len)
-        smallest = results[0] ## more efficient to AND smallest -> mid -> largest
-        for res in results:
-            smallest &= res
-            # smallest = smallest.intersection(res) ## actually TA says & doesnt work that well and returns bad results from a1
-            ## need to do something else
-        print(len(smallest))
-        # time.sleep(4)
-        if smallest:
-            cosine_time = time.time()
-            
-            doc_scores = []
-            if len(query_terms) == 1: ## we dont need to find cosine similarity in single token words
-                term = query_terms[0]
-                prefix = prefix_getter(term)
-                position = positions[prefix][term]
-
-                for id, tfidf, _ in read_json(index[prefix], position, term):
-                    if id in smallest:
-                        doc_scores.append((id, tfidf))
-
-            else:
-                smallest = list(smallest)
-                for doc_id in smallest[:50]:
-                    doc_time = time.time()
-                    doc_vector = get_document_vector(doc_id, query_terms, index, positions, term_postings) ## takes around 0.02
-                    print("DOC TIME:", time.time() - doc_time)
-
-                    similarity = cosine_similarity(query_vector, doc_vector) ## takes 0.0
-
-                    doc_scores.append((doc_id, similarity))
-
-            doc_scores.sort(key=lambda x: x[1], reverse=True)
-            for doc_id, score in doc_scores[:5]:
-                print(f"{doc_id}: {docID_url[str(doc_id)]} (Score: {score:.4f})")
-
-            print("cosine time: ", time.time() - cosine_time)
+        doc_scores.sort(key=lambda x: x[1], reverse=True)
+        for doc_id, score in doc_scores[:5]:
+            print(f"{doc_id}: {docID_url[str(doc_id)]} (Score: {score:.4f})")
+        print("cosine time: ", time.time() - cosine_time)
 
     end = time.time()
+    
     print("Query took: ", end - start)
     run(index, positions, docID_url)
 
 def prefix_getter(word):  # names the files and checks prefixes
     if re.match(r'^[0-9]+$', word[0]):
-        return "numbers"
+        return word[0]
     elif word[0] in "abcdefghijklmnopqrstuvwxyz":
         return word[0]
     else:
