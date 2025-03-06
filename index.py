@@ -38,6 +38,7 @@ def tokenize(text):
     # Categorizing text based on their importance level
     important_text = {
         't': soup.title.string if soup.title and soup.title.string else '',
+        'a': ' '.join([h.get_text() for h in soup.find_all('h1')]),
         'h1': ' '.join([h.get_text() for h in soup.find_all('h1')]),
         'h2': ' '.join([h.get_text() for h in soup.find_all('h2')]),
         'h3': ' '.join([h.get_text() for h in soup.find_all('h3')]),
@@ -98,14 +99,14 @@ def index_partial(index, part):
     if not os.path.exists(
             partial_index_directory):  # wait is this supposed to be ran on lab or local? does os.path work for lab
         os.makedirs(partial_index_directory)  # even so need to upload all the files to the repo which is hmmmm
-    filename = f"partial_index_part{part}.json"
+    filename = f"partial_index_part{part}.txt"
     index = dict(sorted(index.items()))
     file = os.path.join(partial_index_directory, filename)
     with open(file, "w") as f:
         json.dump(index, f)
 
 def write_docID_url(docID_url): ## writes the document IDs and URLs to a file to return the results
-    file = os.path.join(os.getcwd(), "docID_url_map.json")
+    file = os.path.join(os.getcwd(), "docID_url_map.txt")
     with open(file, "w") as f:
         json.dump(docID_url, f)
 
@@ -119,7 +120,7 @@ def compute_tf_idf(tf, idf):
 def index_complete(running_count):
     partial_paths = []
     for f in os.listdir(partial_index_directory):
-        if f.endswith(".json"):
+        if f.endswith(".txt"):
             partial_paths.append(os.path.join(partial_index_directory, f))
 
     iterators = []
@@ -212,7 +213,7 @@ def get_prefix(word):  # names the files and checks prefixes
 def save_partial_file(prefix, data):
     if not os.path.exists(complete_index_directory):
         os.makedirs(complete_index_directory)
-    file_path = os.path.join(complete_index_directory, f"complete_index_{prefix}.json")
+    file_path = os.path.join(complete_index_directory, f"complete_index_{prefix}.txt")
     with open(file_path, "w") as f:
         f.write("[\n")
         
@@ -228,7 +229,7 @@ def save_partial_file(prefix, data):
 
 
 def update_positions(prefix, data):
-    file_path = os.path.join(complete_index_directory, f"complete_index_{prefix}.json")
+    file_path = os.path.join(complete_index_directory, f"complete_index_{prefix}.txt")
     temp_positions = {}
     with open(file_path, "rb") as f:
         line = f.readline()
@@ -242,7 +243,7 @@ def update_positions(prefix, data):
     positions[prefix] = temp_positions
 
 def save_positions_to_file():
-    position_file_path = os.path.join(complete_index_directory, "positions.json")
+    position_file_path = os.path.join(complete_index_directory, "positions.txt")
     with open(position_file_path, "w") as f:
         # json.dump(positions, f)
         f.write("[\n")
