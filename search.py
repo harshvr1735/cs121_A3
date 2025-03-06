@@ -5,21 +5,17 @@ import time
 import nltk.tokenize
 from nltk.stem import PorterStemmer
 import numpy as np
-import math
-
-import bisect
 
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
 stemmer = PorterStemmer()
 tokenizer = nltk.tokenize.RegexpTokenizer(r'[a-zA-Z0-9]+')
 
 def read_json(file_path, position, key):
-
     file_path.seek(position)
-    # chunk = file_path.read(200000) ## this would be better if implemented sorting by tfidf
+    chunk = file_path.read(200000) ## this would be better if implemented sorting by tfidf
     ## for ex, we prioritize looking at everyyy posting. this limits it to like 15000 bytes of characters
 
-    chunk = file_path.readline() ## this is if we want every posting
+    # chunk = file_path.readline() ## this is if we want every posting
 
     try:## this is for if we read by bytes. readline() doesnt need this block
         start = chunk.find('{"word":')
@@ -31,10 +27,8 @@ def read_json(file_path, position, key):
                 if last_comma + 2 != latest_closed_bracket:
                     truncated_chunk = chunk[:latest_closed_bracket] + "]]}"
                 else:
-                    print("CONTAINS COMMA")
                     truncated_chunk = chunk[:last_comma] + "]]}"
             else:
-                print("SOMETHING ELSE")
                 truncated_chunk = chunk[:start] + "]}"
         else:
             truncated_chunk = chunk[:end + 1]
@@ -46,14 +40,12 @@ def read_json(file_path, position, key):
         
     except json.JSONDecodeError:
         print("JSON ERROR")
-        time.sleep(1)
         pass
 
-    print("NOT FOUND")
     return []
 
 def load_positions():
-    positions_file = os.path.join(complete_index_directory, "positions.json")
+    positions_file = os.path.join(complete_index_directory, "positions.txt")
     with open(positions_file, "r") as f:
         positions = json.load(f)
     
@@ -67,7 +59,7 @@ def load_positions():
 def load_inverted_index():
     index = {}
     for file in os.listdir(complete_index_directory):
-        if file.endswith(".json"):
+        if file.endswith(".txt"):
             name_split = file.split("_")[-1].split(".")[0]
             path = os.path.join(complete_index_directory, file)
 
@@ -81,12 +73,9 @@ def load_inverted_index():
 ####
 def dot_product(vector1, vector2):
     return np.dot(vector1, vector2)
-    # return sum(v1 * v2 for v1, v2 in zip(vector1, vector2))
 
 def vector_magnitude(vector):
-    return np.linalg.norm(vector)
-    # return math.sqrt(sum(v ** 2 for v in vector))
-    
+    return np.linalg.norm(vector)    
 
 def cosine_similarity(vector1, vector2):
     vectors_product = dot_product(vector1, vector2)
@@ -100,11 +89,12 @@ def cosine_similarity(vector1, vector2):
 def get_query_vector(query_terms, index, positions):
     term_postings = {}
     query_vector = []
+    cached_postings = {}
     for term in query_terms:
         term = stemmer.stem(term)
-        try:
-            prefix = prefix_getter(term)
+        prefix = prefix_getter(term)
 
+        try:
             term_position = positions[prefix]
             if term not in term_position:
                 print(f"{term} not found in index.")
@@ -116,72 +106,88 @@ def get_query_vector(query_terms, index, positions):
 
             tf_idf_sum = 0 ## finds the average of allll the tfidf scores for a query term
             for _, tfidf, text_type in postings:
-                if text_type in ['b', 'title', 'h1', 'h2', 'h3']: ##weights on text styling
+                if text_type in ['b', 'title', 'h1', 'h2', 'h3', 'a']: ##weights on text styling
                     tfidf *= 1.5
                 tf_idf_sum += tfidf
 
             average_tf_idf = tf_idf_sum / len(postings)
             query_vector.append(average_tf_idf)
-
+            cached_postings[term] = postings
         except KeyError:
             query_vector.append(0)
-    return query_vector, term_postings
 
-def get_document_vector(doc_id, query_terms, index, positions, term_postings):
+    return query_vector, term_postings, cached_postings
+
+def get_document_vector(doc_id, query_terms, index, positions, term_postings, cached_postings=None):
     doc_vector = []
+    if cached_postings is None:
+        cached_postings = {term: term_postings.get(term, []) for term in query_terms}  #cached term postings
+
     for term in query_terms:
-        # term = stemmer.stem(term)
-        prefix = prefix_getter(term)
-        try:
-            term_position = positions[prefix]
-            if term not in term_position:
-                print(f"{term} not found in index.")
-                continue
-            doc_time = time.time()
-            postings = term_postings[term]
+        postings = cached_postings.get(term, [])
+        tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
+        
+        if any(posting[0] == doc_id and posting[2] in ['b', 'title', 'h1', 'h2', 'h3', 'a'] for posting in postings):
+            tf_idf_score *= 1.5
 
-            # print("number of postings:", len(postings))
+        doc_vector.append(tf_idf_score)
 
-            # tf_idf_score = bin_search(list(postings), doc_id) ## MAKES IT 3 SECONDS LONGER THAN NEXT(())???
-            ## its taking so long bc this requires a list, but next(()) only needs a set. ok.
-
-            tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
-            if any(posting[0] == doc_id and posting[2] in ['b', 'title', 'h1', 'h2', 'h3'] for posting in postings):
-                tf_idf_score *= 1.5
-
-            doc_vector.append(tf_idf_score)
-
-        except KeyError:
-            doc_vector.append(0)
     return doc_vector
+
+def raw_tfidf_ranking(query_terms, term_postings, result_docs, query_vector):
+    doc_scores = {}
+    aaaaa = []
+    # print(query_terms)
+    # time.sleep(1)
+
+    for term in query_terms:
+        # print(term)
+        # time.sleep(1)
+        postings = term_postings.get(term, [])
+        temp_vector = []
+        for doc_id, tfidf, _ in postings:
+            if doc_id not in result_docs:
+                continue
+
+            if doc_id not in doc_scores:
+                doc_scores[doc_id] = [tfidf]
+            else:
+                doc_scores[doc_id].append(tfidf)
+
+    for doc_id, doc_vector in doc_scores.items():
+        padded_query_vector, padded_doc_vector = pad_vectors(query_vector, doc_vector)
+        
+        sim = cosine_similarity(padded_query_vector, padded_doc_vector)
+        # print(f"similarity for doc {doc_id}: {sim}")
+        aaaaa.append((doc_id, sim))
+
+    aaaaa.sort(key=lambda x: x[1], reverse=True)
+    # print(aaaaa[:5])
+    return aaaaa
+
 
 def get_documents_containing_all_terms(query_terms, term_postings):
     ## init a set of documents that contains the first term
-    # print(term_postings.keys())
-    dict(sorted(term_postings.items(), key=lambda item: item[1]))
-    # time.sleep(2)
-    first_term = query_terms[0]
-    term_postings_for_first_term = term_postings.get(first_term, [])
+    sorted_terms = sorted(query_terms, key=lambda term: len(term_postings.get(term, [])))
+    result_docs = set(doc_id for doc_id, _, _ in term_postings.get(sorted_terms[0], []))
     
-    if not term_postings_for_first_term:
-        return set()
-
-    #start with the set of documents for the first term
-    result_docs = set(doc_id for doc_id, _, _ in term_postings_for_first_term)
-    print("TERM: ", first_term)
-    # intersect with documents containing all other terms
-    for term in query_terms[1:]:
-        print("TERM: ", term)
-
-        term_postings_for_current_term = term_postings.get(term, [])
-        if not term_postings_for_current_term:
-            return set()  # if any term isnt in the index return an empty set
-
-        term_docs = set(doc_id for doc_id, _, _ in term_postings_for_current_term)
-        result_docs &= term_docs  # intersect
+    for term in sorted_terms[1:]:
+        term_docs = set(doc_id for doc_id, _, _ in term_postings.get(term, []))
+        result_docs &= term_docs
+        if not result_docs:
+            break  ## early termination if no documents are left
 
     return result_docs
 
+def pad_vectors(query_vector, doc_vector): ## allows dot product by just throwing on extra 0s
+    max_len = max(len(query_vector), len(doc_vector))
+    
+    if len(query_vector) < max_len:
+        query_vector = query_vector + [0] * (max_len - len(query_vector))
+    if len(doc_vector) < max_len:
+        doc_vector = doc_vector + [0] * (max_len - len(doc_vector))
+    
+    return query_vector, doc_vector
 
 
 def index_getter(index, positions, input, docID_url):
@@ -189,19 +195,21 @@ def index_getter(index, positions, input, docID_url):
 
     query_terms = tokenizer.tokenize(input)
     query_terms = [stemmer.stem(term.lower()) for term in query_terms]
-    query_vector, term_postings = get_query_vector(query_terms, index, positions)
+    # print(query_terms)
+    query_vector, term_postings, cached_postings = get_query_vector(query_terms, index, positions)
 
-    print("query_vector time: ", time.time() - start)
+    print("query_vector time: ", time.time() - start) ## .2 seconds
     result_docs = get_documents_containing_all_terms(query_terms, term_postings) ##
-    print("doc intersection:", time.time() - start)
-
+    end = time.time()
     if result_docs:
+
         doc_scores = []
+        doc_vectors = []
         cosine_time = time.time()
         print("Number of results: ",len(result_docs))
 
 
-        if len(query_terms) == 1: ## we dont need to find cosine similarity in single token words
+        if len(query_terms) == 1:
             term = query_terms[0]
             prefix = prefix_getter(term)
             position = positions[prefix][term]
@@ -209,26 +217,30 @@ def index_getter(index, positions, input, docID_url):
             for id, tfidf, _ in read_json(index[prefix], position, term):
                 if id in result_docs:
                     doc_scores.append((id, tfidf))
-        else:
-            result_docs = list(result_docs)[:25]
-            result_docs = set(result_docs)
-            for doc_id in result_docs:
-                doc_time = time.time()
-                doc_vector = get_document_vector(doc_id, query_terms, index, positions, term_postings)
-                print("DOC TIME: ", time.time() - doc_time)
-                # cos_simtime = time.time()
-                similarity = cosine_similarity(query_vector, doc_vector)
-                # print("cos sim time:", time.time() - cos_simtime)
-                doc_scores.append((doc_id, similarity))
 
-        doc_scores.sort(key=lambda x: x[1], reverse=True)
+        else:
+            doc_scores = raw_tfidf_ranking(query_terms, term_postings, result_docs, query_vector)
+        #     result_docs = list(result_docs)[:15]
+        #     result_docs = set(result_docs)
+
+        #     for doc_id in result_docs:
+        #         doc_time = time.time()
+
+        #         doc_vector = get_document_vector(doc_id, query_terms, index, positions, term_postings, cached_postings)
+        #         doc_vectors.append(doc_vector)
+        #         similarity = cosine_similarity(query_vector, doc_vector)
+        #         # print("DOC TIME: ", time.time() - doc_time, doc_id)
+
+        #         doc_scores.append((doc_id, similarity))
+
+        # doc_scores.sort(key=lambda x: x[1], reverse=True)
+
+        end = time.time()
         for doc_id, score in doc_scores[:5]:
             print(f"{doc_id}: {docID_url[str(doc_id)]} (Score: {score:.4f})")
         print("cosine time: ", time.time() - cosine_time)
-
-    end = time.time()
-    
     print("Query took: ", end - start)
+
     run(index, positions, docID_url)
 
 def prefix_getter(word):  # names the files and checks prefixes
@@ -252,7 +264,7 @@ def run(index, positions, docID_url):
 def main():
     index = load_inverted_index()
     positions = load_positions()
-    with open("docID_url_map.json", "r") as f:
+    with open("docID_url_map.txt", "r") as f:
         docID_url = json.load(f)
     run(index, positions, docID_url)
 
