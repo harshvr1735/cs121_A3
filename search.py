@@ -5,19 +5,22 @@ import time
 import nltk.tokenize
 from nltk.stem import PorterStemmer
 import numpy as np
+from nltk.corpus import stopwords
+## nltk.download('stopwords') uncomment for first time running program
 
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
 stemmer = PorterStemmer()
 tokenizer = nltk.tokenize.RegexpTokenizer(r'[a-zA-Z0-9]+')
+stopWords = set(stopwords.words('english')) 
 
 def read_json(file_path, position, key):
     file_path.seek(position)
-    chunk = file_path.read(200000) ## this would be better if implemented sorting by tfidf
-    ## for ex, we prioritize looking at everyyy posting. this limits it to like 15000 bytes of characters
+    if key in stopWords:
+        chunk = file_path.read(200000)
+    else:
+        chunk = file_path.readline() 
 
-    # chunk = file_path.readline() ## this is if we want every posting
-
-    try:## this is for if we read by bytes. readline() doesnt need this block
+    try:
         start = chunk.find('{"word":')
         end = chunk.find('}', start)
         if end == -1:
@@ -35,6 +38,7 @@ def read_json(file_path, position, key):
         word_postings = truncated_chunk
 
         data = json.loads(word_postings)
+
         if data.get("word") == key:
             return data.get("postings", [])
         
@@ -70,7 +74,7 @@ def load_inverted_index():
 
 
 
-####
+#### COSINE SIMILARITY
 def dot_product(vector1, vector2):
     return np.dot(vector1, vector2)
 
@@ -91,7 +95,7 @@ def get_query_vector(query_terms, index, positions):
     query_vector = []
     cached_postings = {}
     for term in query_terms:
-        term = stemmer.stem(term)
+        # qtime = time.time()
         prefix = prefix_getter(term)
 
         try:
@@ -104,24 +108,25 @@ def get_query_vector(query_terms, index, positions):
             postings = set((doc_id, tfidf, text_type) for doc_id, tfidf, text_type in read_json(index[prefix], position, term))
             term_postings[term] = postings
 
-            tf_idf_sum = 0 ## finds the average of allll the tfidf scores for a query term
+            tf_idf_sum = 0 
             for _, tfidf, text_type in postings:
-                if text_type in ['b', 'title', 'h1', 'h2', 'h3', 'a']: ##weights on text styling
+                if text_type in ['b', 'title', 'h1', 'h2', 'h3', 'a']:
                     tfidf *= 1.5
                 tf_idf_sum += tfidf
 
             average_tf_idf = tf_idf_sum / len(postings)
             query_vector.append(average_tf_idf)
             cached_postings[term] = postings
+            # print("qtime:", time.time() - qtime)
+
         except KeyError:
             query_vector.append(0)
-
     return query_vector, term_postings, cached_postings
 
 def get_document_vector(doc_id, query_terms, index, positions, term_postings, cached_postings=None):
     doc_vector = []
     if cached_postings is None:
-        cached_postings = {term: term_postings.get(term, []) for term in query_terms}  #cached term postings
+        cached_postings = {term: term_postings.get(term, []) for term in query_terms}
 
     for term in query_terms:
         postings = cached_postings.get(term, [])
@@ -137,12 +142,7 @@ def get_document_vector(doc_id, query_terms, index, positions, term_postings, ca
 def raw_tfidf_ranking(query_terms, term_postings, result_docs, query_vector):
     doc_scores = {}
     aaaaa = []
-    # print(query_terms)
-    # time.sleep(1)
-
     for term in query_terms:
-        # print(term)
-        # time.sleep(1)
         postings = term_postings.get(term, [])
         temp_vector = []
         for doc_id, tfidf, _ in postings:
@@ -158,24 +158,20 @@ def raw_tfidf_ranking(query_terms, term_postings, result_docs, query_vector):
         padded_query_vector, padded_doc_vector = pad_vectors(query_vector, doc_vector)
         
         sim = cosine_similarity(padded_query_vector, padded_doc_vector)
-        # print(f"similarity for doc {doc_id}: {sim}")
         aaaaa.append((doc_id, sim))
 
     aaaaa.sort(key=lambda x: x[1], reverse=True)
-    # print(aaaaa[:5])
     return aaaaa
 
 
 def get_documents_containing_all_terms(query_terms, term_postings):
-    ## init a set of documents that contains the first term
     sorted_terms = sorted(query_terms, key=lambda term: len(term_postings.get(term, [])))
     result_docs = set(doc_id for doc_id, _, _ in term_postings.get(sorted_terms[0], []))
-    
     for term in sorted_terms[1:]:
         term_docs = set(doc_id for doc_id, _, _ in term_postings.get(term, []))
         result_docs &= term_docs
         if not result_docs:
-            break  ## early termination if no documents are left
+            break
 
     return result_docs
 
@@ -195,19 +191,16 @@ def index_getter(index, positions, input, docID_url):
 
     query_terms = tokenizer.tokenize(input)
     query_terms = [stemmer.stem(term.lower()) for term in query_terms]
-    # print(query_terms)
+
     query_vector, term_postings, cached_postings = get_query_vector(query_terms, index, positions)
 
     print("query_vector time: ", time.time() - start) ## .2 seconds
     result_docs = get_documents_containing_all_terms(query_terms, term_postings) ##
     end = time.time()
     if result_docs:
-
         doc_scores = []
-        doc_vectors = []
         cosine_time = time.time()
         print("Number of results: ",len(result_docs))
-
 
         if len(query_terms) == 1:
             term = query_terms[0]
@@ -220,20 +213,6 @@ def index_getter(index, positions, input, docID_url):
 
         else:
             doc_scores = raw_tfidf_ranking(query_terms, term_postings, result_docs, query_vector)
-        #     result_docs = list(result_docs)[:15]
-        #     result_docs = set(result_docs)
-
-        #     for doc_id in result_docs:
-        #         doc_time = time.time()
-
-        #         doc_vector = get_document_vector(doc_id, query_terms, index, positions, term_postings, cached_postings)
-        #         doc_vectors.append(doc_vector)
-        #         similarity = cosine_similarity(query_vector, doc_vector)
-        #         # print("DOC TIME: ", time.time() - doc_time, doc_id)
-
-        #         doc_scores.append((doc_id, similarity))
-
-        # doc_scores.sort(key=lambda x: x[1], reverse=True)
 
         end = time.time()
         for doc_id, score in doc_scores[:5]:
