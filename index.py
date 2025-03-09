@@ -74,6 +74,7 @@ def create_shingles(content, shingle_size = 5):
         shingles.add(compute_hash(shingle))
     return shingles
 
+# To compute the jaccard similarity by comparing shingles
 def jaccard_similarity(set1, set2):
     intersection = len(set1.intersection(set2))
     union = len(set1.union(set2))
