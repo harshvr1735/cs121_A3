@@ -87,13 +87,27 @@ def index(files):
     part = 1
     docID_url = {}
     content_hashes = set() # Set to track hashes of document content
+    shingle_sets = {} # Tracking shingle sets for near-duplicate detection
 
     for doc in files:
         content = doc['content']
         content_hash = compute_hash(content)
         if content_hash in content_hashes:
-            print("Duplicate detected: Skipping {doc['url']}")
+            print("Duplicate page detected: Skipping {doc['url']}")
             continue
+
+        shingles = create_shingles(content)
+        is_near_duplicate = False
+        for existing_shingles in shingle_sets.values():
+            if jaccard_similarity(shingles, existing_shingles) > 0.8:
+                pritn("Near-duplicate page detected: Skipping {doc['url']}")
+                is_near_duplicate = True
+                break
+        
+        if is_near_duplicate:
+            continue
+
+        shingle_sets[running_count] = shingles
         content_hashes.add(content_hash)
         print(doc['url'])
         docID_url[running_count] = doc['url']
