@@ -71,9 +71,6 @@ def load_inverted_index():
     return index
 
 
-
-
-
 #### COSINE SIMILARITY
 def dot_product(vector1, vector2):
     return np.dot(vector1, vector2)
