@@ -297,7 +297,8 @@ def main(path):
     docID_url, running_count = index(files)
     write_docID_url(docID_url)
     total_tokens = index_complete(running_count)
-    write_report(total_tokens, len(files))
+    exact_duplicates = len(files) - running_count
+    write_report(total_tokens, len(files), exact_duplicates)
 
 
 if __name__ == "__main__":
