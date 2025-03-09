@@ -182,32 +182,29 @@ def index_complete(running_count):
                          key=lambda x: x[0])  # sorts the iterators based on the first letter, makes an iterator
 
     current_word = None
-    current_word_count = 0
+    current_word_docs = set()
     idf_dict = defaultdict(int)
     for word, info in copymerged:
-        print("word",word)
+        # print("word",word)
         # time.sleep(1)
         if current_word is None: ## sets the initial currenet word to be compared
-            # print("hit")
-            # time.sleep(1)
             current_word = word
-            current_word_count = len(info)
+            current_word_docs.add(info[0][0])
 
         elif current_word != word:
-            idf = compute_idf(current_word_count, running_count)
+            idf = compute_idf(len(current_word_docs), running_count)
             idf_dict[current_word] = idf
-            print("idf, current_word, current_count: ",idf, current_word, current_word_count)
+            # print("idf, current_word, current_count: ",idf, current_word, current_word_count)
             # time.sleep(0.1)
             current_word = word
-            current_word_count = len(info)
+            current_word_docs = {info[0][0]}
 
         else:
             # time.sleep(1)
-            current_word_count += len(info)
+            current_word_docs.add(info[0][0])
     if current_word:
         idf = compute_idf(current_word_count, running_count)
         idf_dict[current_word] = idf
-
     # print(idf_dict, current_word_count)
     # THE IDEA IS:
     # everything is stored inside partial indexes, so there are iterators for each partial index
