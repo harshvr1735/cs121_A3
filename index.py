@@ -65,19 +65,24 @@ def compute_tf(freq):
 def compute_hash(doc_content):
     return hashlib.md5(doc_content.encode('utf-8')).hexdigest()
 
-
 def index(files):
     index = defaultdict(list)
     counter = 0
     running_count = 0
     part = 1
     docID_url = {}
+    content_hashes = set() # Set to track hashes of document content
 
     for doc in files:
+        content = doc['content']
+        content_hash = compute_hash(content)
+        if content_hash in content_hashes:
+            print("Duplicate detected: Skipping {doc['url']}")
+            continue
+        content_hashes.add(content_hash)
         print(doc['url'])
         docID_url[running_count] = doc['url']
         
-        content = doc['content']
         tokens = tokenize(content)
         print()
         for word, freq_by_importance in tokens.items():
