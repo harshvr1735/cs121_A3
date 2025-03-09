@@ -65,6 +65,14 @@ def compute_tf(freq):
 def compute_hash(doc_content):
     return hashlib.md5(doc_content.encode('utf-8')).hexdigest()
 
+def create_shingles(content, shingle_size = 5):
+    words = content.split()
+    shingles = set()
+    for i in range(len(words) - shingle_size + 1):
+        shingle = " ".join(words [i:i + shingle_size])
+        shingles.add(compute_hash(shingle))
+    return shingles
+
 def index(files):
     index = defaultdict(list)
     counter = 0
