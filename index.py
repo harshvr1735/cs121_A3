@@ -66,8 +66,9 @@ def compute_hash(doc_content):
     return hashlib.md5(doc_content.encode('utf-8')).hexdigest()
 
 # Breaks the content into n-grams of words and calculates hash value for each shingle
-def create_shingles(content, shingle_size = 5):
+def create_shingles(content):
     words = content.split()
+    shingle_size = min(5, len(words))
     shingles = set()
     for i in range(len(words) - shingle_size + 1):
         shingle = " ".join(words [i:i + shingle_size])
@@ -103,7 +104,7 @@ def index(files):
         is_near_duplicate = False
         for existing_shingles in shingle_sets.values():
             if jaccard_similarity(shingles, existing_shingles) > 0.8:
-                pritn("Near-duplicate page detected: Skipping {doc['url']}")
+                print("Near-duplicate page detected: Skipping {doc['url']}")
                 is_near_duplicate = True
                 near_duplicate_count += 1
                 break
