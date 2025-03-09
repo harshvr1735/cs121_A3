@@ -87,13 +87,16 @@ def index(files):
     part = 1
     docID_url = {}
     content_hashes = set() # Set to track hashes of document content
+    duplicate_count = 0
     shingle_sets = {} # Tracking shingle sets for near-duplicate detection
+    near_duplicate_count = 0
 
     for doc in files:
         content = doc['content']
         content_hash = compute_hash(content)
         if content_hash in content_hashes:
             print("Duplicate page detected: Skipping {doc['url']}")
+            duplicate_count += 1
             continue
 
         shingles = create_shingles(content)
@@ -102,6 +105,7 @@ def index(files):
             if jaccard_similarity(shingles, existing_shingles) > 0.8:
                 pritn("Near-duplicate page detected: Skipping {doc['url']}")
                 is_near_duplicate = True
+                near_duplicate_count += 1
                 break
         
         if is_near_duplicate:
@@ -132,7 +136,7 @@ def index(files):
     if len(index.keys()) != 0:
         index_partial(index, part)  # catches the final indexes
 
-    return docID_url, running_count
+    return docID_url, running_count, duplicate_count, near_duplicate_count
 
 def index_partial(index, part):
     if not os.path.exists(
@@ -326,11 +330,10 @@ def write_report(total_tokens, total_files, exact_duplicates, near_duplicates):
 
 def main(path):
     files = json_files(path)
-    docID_url, running_count = index(files)
+    docID_url, running_count, exact_duplicates, near_duplicates = index(files)
     write_docID_url(docID_url)
     total_tokens = index_complete(running_count)
-    exact_duplicates = len(files) - running_count
-    write_report(total_tokens, len(files), exact_duplicates)
+    write_report(total_tokens, len(files), exact_duplicates, near_duplicates)
 
 
 if __name__ == "__main__":
