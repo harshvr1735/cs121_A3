@@ -283,12 +283,12 @@ def calculate_index_size(directory):
     return total_size / 1024
 
 
-def write_report(total_tokens, total_files):
+def write_report(total_tokens, total_files, exact_duplicates):
     report_path = os.path.join(os.getcwd(), "report.txt")
     index_size_kb = calculate_index_size(complete_index_directory)
     with open(report_path, "w") as f:
         msg = (f"Total Number of Tokens: {total_tokens}\nTotal Number of Files: {total_files}\n"
-               f"Total Size of Index (KB): {index_size_kb}")
+               f"Total Size of Index (KB): {index_size_kb}\nNumber of exact pages skipped: {exact_duplicates}")
         f.write(msg)
 
 
