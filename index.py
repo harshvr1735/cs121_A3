@@ -65,6 +65,7 @@ def compute_tf(freq):
 def compute_hash(doc_content):
     return hashlib.md5(doc_content.encode('utf-8')).hexdigest()
 
+# Breaks the content into n-grams of words and calculates hash value for each shingle
 def create_shingles(content, shingle_size = 5):
     words = content.split()
     shingles = set()
