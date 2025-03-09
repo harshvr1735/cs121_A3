@@ -9,6 +9,7 @@ import heapq
 import re
 import math
 import time
+import hashlib
 
 # nltk.download('punkt_tab')
 # NOTE: NEED TO PIP INSTALL LXML
