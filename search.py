@@ -12,6 +12,14 @@ complete_index_directory = os.path.join(os.getcwd(), "complete_index")
 stemmer = PorterStemmer()
 tokenizer = nltk.tokenize.RegexpTokenizer(r'[a-zA-Z0-9]+')
 stopWords = set(stopwords.words('english')) 
+weights = {
+    't': 1.5,
+    'a' : 1.4,
+    'h1': 1.3,
+    'h2': 1.2,
+    'b': 1.1,
+    'n': 1.0
+}
 
 def read_json(file_path, position, key):
     file_path.seek(position)
@@ -107,8 +115,6 @@ def get_query_vector(query_terms, index, positions):
 
             tf_idf_sum = 0 
             for _, tfidf, text_type in postings:
-                if text_type in ['b', 'title', 'h1', 'h2', 'h3', 'a']:
-                    tfidf *= 1.5
                 tf_idf_sum += tfidf
 
             average_tf_idf = tf_idf_sum / len(postings)
@@ -120,32 +126,17 @@ def get_query_vector(query_terms, index, positions):
             query_vector.append(0)
     return query_vector, term_postings, cached_postings
 
-def get_document_vector(doc_id, query_terms, index, positions, term_postings, cached_postings=None):
-    doc_vector = []
-    if cached_postings is None:
-        cached_postings = {term: term_postings.get(term, []) for term in query_terms}
-
-    for term in query_terms:
-        postings = cached_postings.get(term, [])
-        tf_idf_score = next((posting[1] for posting in postings if posting[0] == doc_id), 0)
-        
-        if any(posting[0] == doc_id and posting[2] in ['b', 'title', 'h1', 'h2', 'h3', 'a'] for posting in postings):
-            tf_idf_score *= 1.5
-
-        doc_vector.append(tf_idf_score)
-
-    return doc_vector
-
 def raw_tfidf_ranking(query_terms, term_postings, result_docs, query_vector):
     doc_scores = {}
     aaaaa = []
     for term in query_terms:
         postings = term_postings.get(term, [])
-        temp_vector = []
         for doc_id, tfidf, _ in postings:
             if doc_id not in result_docs:
                 continue
-
+                
+            tfidf *= weights.get(style, 1.0)
+            
             if doc_id not in doc_scores:
                 doc_scores[doc_id] = [tfidf]
             else:
