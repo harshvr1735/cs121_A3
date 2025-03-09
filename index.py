@@ -62,6 +62,10 @@ def tokenize(text):
 def compute_tf(freq):
     return math.log(1 + freq)
 
+def get_doc_hash(doc_content) {
+    return hashlib.md5(doc_content.encode('utf-8')).hexdigest()
+}
+
 def index(files):
     index = defaultdict(list)
     counter = 0
