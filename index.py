@@ -335,7 +335,6 @@ def main(path):
 
 
 if __name__ == "__main__":
-    path = "C:/users/16264/desktop/developer/DEV/"
-    # path = "C:/users/16264/desktop/developer/ANALYST/www-db_ics_uci_edu"
+    path = "C:\\Harsh\\UC Irvine\\Coursework\\2025-Winter\\cs121\\DEV"
 
     main(path)
