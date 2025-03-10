@@ -1,0 +1,20 @@
+cristina lopes
+machine learning
+ACM
+master of software engineering
+search engine algorithms
+university of california irvine
+neural networks
+computer science rankings
+artificial intelligence ethics
+software engineering principles
+"open source software" - Initial results were noisy. Fixed by adding stopword removal and phrase search.
+"data science" - Too many results. Improved ranking by adjusting TF-IDF weighting.
+"CS conference papers" - Retrieved irrelevant documents. Improved term expansion using stemming.
+"deep learning vs machine learning" - No distinction. Improved handling of multi-word phrases.
+"computer vision research" - Low recall. Improved indexing by adding synonyms.
+
+Additional Queries Tested:
+multiple stopwords - Queries with just stopwords returned poor results initially. Stopword filtering was added to improve performance.
+long queries > 10 words - were initially noisy. Query term weighting was adjusted to emphasize important words.
+Random single words like "university"
