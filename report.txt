@@ -1,3 +1,0 @@
-Total Number of Tokens: 1136824
-Total Number of Files: 55393
-Total Size of Index (KB): 223706.8896484375
