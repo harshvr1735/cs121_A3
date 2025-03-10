@@ -10,6 +10,8 @@ import time
 # nltk.download('stopwords') ## uncomment if you havent downloaded this before
 # nltk.download('punkt') ## ^^
 
+term_cache = {}
+MAX_CACHE_SIZE = 100
 complete_index_directory = os.path.join(os.getcwd(), "complete_index")
 stemmer = PorterStemmer()
 tokenizer = nltk.tokenize.RegexpTokenizer(r'[a-zA-Z0-9]+')
@@ -25,37 +27,66 @@ weights = {
 
 def read_json(file_path, position, key):
     file_path.seek(position)
-    if key in stopWords:
-        chunk = file_path.read(200000)
-    else:
-        chunk = file_path.readline() 
-
+    
+    chunk_size = 10000 if key not in stopWords else 100000
+    chunk = file_path.read(chunk_size)
+    
     try:
-        start = chunk.find('{"word":')
-        end = chunk.find('}', start)
-        if end == -1:
-            last_comma = chunk.rfind(',', start)
-            if last_comma != -1:
-                latest_closed_bracket = chunk.rfind(']', start)
-                if last_comma + 2 != latest_closed_bracket:
-                    truncated_chunk = chunk[:latest_closed_bracket] + "]]}"
-                else:
-                    truncated_chunk = chunk[:last_comma] + "]]}"
-            else:
-                truncated_chunk = chunk[:start] + "]}"
-        else:
-            truncated_chunk = chunk[:end + 1]
-        word_postings = truncated_chunk
-
-        data = json.loads(word_postings)
-
-        if data.get("word") == key:
-            return data.get("postings", [])
+        start = chunk.find('{"word":"' + key + '"')
+        if start == -1:
+            return []
+        
+        brace_level = 0
+        in_string = False
+        escape_next = False
+        end = start
+        
+        for i in range(start, len(chunk)):
+            char = chunk[i]
+            
+            if escape_next:
+                escape_next = False
+                continue
+                
+            if char == '\\':
+                escape_next = True
+            elif char == '"' and not escape_next:
+                in_string = not in_string
+            elif not in_string:
+                if char == '{':
+                    brace_level += 1
+                elif char == '}':
+                    brace_level -= 1
+                    if brace_level == 0:
+                        end = i + 1
+                        break
+        
+        if brace_level != 0:
+            posting_start = chunk.find('"postings":[[', start)
+            if posting_start != -1:
+                posting_end = chunk.find(']]', posting_start)
+                if posting_end != -1:
+                    word_json = f'{{"word":"{key}","postings":{chunk[posting_start+11:posting_end+2]}}}'
+                    data = json.loads(word_json)
+                    return data.get("postings", [])
+            return []
+            
+        word_json = chunk[start:end]
+        data = json.loads(word_json)
+        return data.get("postings", [])
         
     except json.JSONDecodeError:
-        print("JSON ERROR")
-        pass
-
+        try:
+            posting_start = chunk.find('"postings":[[', start)
+            if posting_start != -1:
+                posting_end = chunk.find(']]', posting_start)
+                if posting_end != -1:
+                    posting_json = f'{{"postings":{chunk[posting_start+11:posting_end+2]}}}'
+                    data = json.loads(posting_json)
+                    return data.get("postings", [])
+        except:
+            pass
+            
     return []
 
 def load_positions():
@@ -79,6 +110,26 @@ def load_inverted_index():
             index[name_split] = (open(path, "r"))
     return index
 
+def get_cached_postings(index, positions, term):
+    if term in term_cache:
+        return term_cache[term]
+        
+    prefix = prefix_getter(term)
+    try:
+        term_position = positions[prefix]
+        if term not in term_position:
+            return []
+            
+        position = term_position[term]
+        postings = read_json(index[prefix], position, term)
+        
+        if len(term_cache) < MAX_CACHE_SIZE:
+            term_cache[term] = postings
+            
+        return postings
+    except KeyError:
+        return []
+
 
 ## COSINE SIM
 def dot_product(vector1, vector2):
@@ -88,75 +139,88 @@ def vector_magnitude(vector):
     return np.linalg.norm(vector)
 
 def cosine_similarity(vector1, vector2):
-    vectors_product = dot_product(vector1, vector2)
-    vector1_magnitude = vector_magnitude(vector1)
-    vector2_magnitude = vector_magnitude(vector2)
-    if vector1_magnitude == 0 or vector2_magnitude == 0:
+    v1 = np.array(vector1, dtype=np.float32)
+    v2 = np.array(vector2, dtype=np.float32)
+    dot = np.dot(v1, v2)
+    norm1 = np.linalg.norm(v1)
+    norm2 = np.linalg.norm(v2)
+    
+    if norm1 == 0 or norm2 == 0:
         return 0
-    similarity = vectors_product / (vector1_magnitude * vector2_magnitude)
-    return similarity
+        
+    return dot / (norm1 * norm2)
 
 def get_query_vector(query_terms, index, positions):
     term_postings = {}
     query_vector = []
     cached_postings = {}
+    
     for term in query_terms:
-        prefix = prefix_getter(term)
-
-        try:
-            term_position = positions[prefix]
-            if term not in term_position:
-                continue
-            position = term_position[term]
-
-            postings = set((doc_id, tfidf, text_type) for doc_id, tfidf, text_type in read_json(index[prefix], position, term))
-            term_postings[term] = postings
-
-            tf_idf_sum = 0 
-            for _, tfidf, text_type in postings:
-                tf_idf_sum += tfidf
-
-            average_tf_idf = tf_idf_sum / len(postings)
-            query_vector.append(average_tf_idf)
-            cached_postings[term] = postings
-
-        except KeyError:
+        postings = get_cached_postings(index, positions, term)
+        if not postings:
             query_vector.append(0)
+            continue
+            
+        term_postings[term] = set((doc_id, tfidf, text_type) for doc_id, tfidf, text_type in postings)
+        
+        tf_idf_sum = sum(tfidf for _, tfidf, _ in postings)
+        average_tf_idf = tf_idf_sum / len(postings) if postings else 0
+        query_vector.append(average_tf_idf)
+        cached_postings[term] = postings
+            
     return query_vector, term_postings, cached_postings
 
 def raw_tfidf_ranking(query_terms, term_postings, result_docs, query_vector):
     doc_scores = {}
-    for term in query_terms:
-        postings = term_postings.get(term, [])
-        for doc_id, tfidf, style in postings:
-            if doc_id not in result_docs:
-                continue
-                
-            tfidf *= weights.get(style, 1.0)
-            
-            if doc_id not in doc_scores:
-                doc_scores[doc_id] = [tfidf]
-            else:
-                doc_scores[doc_id].append(tfidf)
-
     results = []
-    for doc_id, doc_vector in doc_scores.items():
-        padded_query_vector, padded_doc_vector = pad_vectors(query_vector, doc_vector)
-        sim = cosine_similarity(padded_query_vector, padded_doc_vector)
-        results.append((doc_id, sim))
-
+    batch_size = 500
+    result_docs_list = list(result_docs)
+    
+    for i in range(0, len(result_docs_list), batch_size):
+        batch_docs = set(result_docs_list[i:i+batch_size])
+        batch_scores = {}
+        
+        for term in query_terms:
+            postings = term_postings.get(term, [])
+            for doc_id, tfidf, style in postings:
+                if doc_id not in batch_docs:
+                    continue
+                    
+                weighted_tfidf = tfidf * weights.get(style, 1.0)
+                
+                if doc_id not in batch_scores:
+                    batch_scores[doc_id] = [weighted_tfidf]
+                else:
+                    batch_scores[doc_id].append(weighted_tfidf)
+        
+        for doc_id, doc_vector in batch_scores.items():
+            padded_query_vector, padded_doc_vector = pad_vectors(query_vector, doc_vector)
+            sim = cosine_similarity(padded_query_vector, padded_doc_vector)
+            results.append((doc_id, sim))
+    
     results.sort(key=lambda x: x[1], reverse=True)
     return results
 
 def get_documents_containing_all_terms(query_terms, term_postings):
-    sorted_terms = sorted(query_terms, key=lambda term: len(term_postings.get(term, [])))
+    if not query_terms or not any(term in term_postings for term in query_terms):
+        return set()
+        
+    valid_terms = [term for term in query_terms if term in term_postings]
+    if not valid_terms:
+        return set()
+        
+    sorted_terms = sorted(valid_terms, key=lambda term: len(term_postings.get(term, [])))
     result_docs = set(doc_id for doc_id, _, _ in term_postings.get(sorted_terms[0], []))
+    
+    if not result_docs:
+        return set()
+    
     for term in sorted_terms[1:]:
         term_docs = set(doc_id for doc_id, _, _ in term_postings.get(term, []))
         result_docs &= term_docs
         if not result_docs:
             break
-
+            
     return result_docs
 
 def pad_vectors(query_vector, doc_vector):
@@ -177,17 +241,34 @@ def prefix_getter(word):
 
 def search_query(query, index, positions, docID_url):
     start_time = time.time()
-    
     query_terms = tokenizer.tokenize(query)
     query_terms = [stemmer.stem(term.lower()) for term in query_terms]
-
+    
+    if not query_terms:
+        return [], 0
+    
     query_vector, term_postings, cached_postings = get_query_vector(query_terms, index, positions)
     result_docs = get_documents_containing_all_terms(query_terms, term_postings)
-
-    query_time = time.time() - start_time
-
-    if result_docs:
-        doc_scores = raw_tfidf_ranking(query_terms, term_postings, result_docs, query_vector)
-        return doc_scores, query_time
+    
+    if not result_docs:
+        return [], time.time() - start_time
+    
+    max_docs = 2000
+    if len(result_docs) > max_docs:
+        result_docs = set(sorted(list(result_docs))[:max_docs])
+    
+    if len(query_terms) == 1:
+        term = query_terms[0]
+        postings = get_cached_postings(index, positions, term)
+        doc_scores = []
+        for id, tfidf, style in postings:
+            if id in result_docs:
+                weighted_tfidf = tfidf * weights.get(style, 1.0)
+                doc_scores.append((id, weighted_tfidf))
+        
+        doc_scores.sort(key=lambda x: x[1], reverse=True)
     else:
-        return [], query_time
+        doc_scores = raw_tfidf_ranking(query_terms, term_postings, result_docs, query_vector)
+    
+    query_time = time.time() - start_time
+    return doc_scores, query_time
