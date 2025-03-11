@@ -131,7 +131,7 @@ def raw_tfidf_ranking(query_terms, term_postings, result_docs, query_vector):
     aaaaa = []
     for term in query_terms:
         postings = term_postings.get(term, [])
-        for doc_id, tfidf, _ in postings:
+        for doc_id, tfidf, style in postings:
             if doc_id not in result_docs:
                 continue
                 
