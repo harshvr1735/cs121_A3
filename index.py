@@ -203,7 +203,7 @@ def index_complete(running_count):
             # time.sleep(1)
             current_word_docs.add(info[0][0])
     if current_word:
-        idf = compute_idf(current_word_count, running_count)
+        idf = compute_idf(len(current_word_docs), running_count)
         idf_dict[current_word] = idf
     # print(idf_dict, current_word_count)
     # THE IDEA IS:
